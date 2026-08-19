@@ -1,0 +1,29 @@
+# Binary build outputs
+*.apk
+*.aab
+*.idsig
+*.zip
+
+# Android/Gradle build caches (regenerated from source)
+app/.gradle/
+app/.kotlin/
+app/build/
+app/app/build/
+app/engine/build/
+app/keyboard/build/
+app/local.properties
+
+# Decompiled reference APKs (not your source)
+analysis/
+
+# Temp / reference files
+context.txt
+references/
+play-store-metadata/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Wrangler cache
+.wrangler/

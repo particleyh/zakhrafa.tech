@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "232833515369",
+    "project_id": "gen-lang-client-0419808949",
+    "storage_bucket": "gen-lang-client-0419808949.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:232833515369:android:909a6841083edbf5e147f8",
+        "android_client_info": {
+          "package_name": "com.keyboard.calligraphy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlE6hl3C_heoYJXICdiwnHl3PqapHbq-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

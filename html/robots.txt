@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /upload-logo.php
+Disallow: /uploads/
+Disallow: /*.apk$
+Disallow: /*.aab$
+Disallow: /*.zip$
+
+Sitemap: https://zakhrafa.tech/sitemap.xml

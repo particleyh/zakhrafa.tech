@@ -1,0 +1,8 @@
+Google Play upload key used for the public release files generated on 2026-05-26.
+
+Keystore: app/release/zakhrafa-upload-key.jks
+Alias: zakhrafa_upload
+Store password: ZakhrafaUpload2026!
+Key password: ZakhrafaUpload2026!
+
+Keep this file and the keystore private. Future updates for these package names must be signed with the same upload key unless Google Play support resets the upload key.
