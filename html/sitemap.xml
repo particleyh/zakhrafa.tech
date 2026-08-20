@@ -72,6 +72,13 @@
     <image:image><image:loc>https://zakhrafa.tech/og-image.png</image:loc></image:image>
   </url>
   <url>
+    <loc>https://zakhrafa.tech/articles/chatdardsha/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+    <image:image><image:loc>https://zakhrafa.tech/og-image.png</image:loc></image:image>
+  </url>
+  <url>
     <loc>https://zakhrafa.tech/privacy-policy.html</loc>
     <lastmod>2026-05-26</lastmod>
     <changefreq>yearly</changefreq>
