@@ -1,3 +1,14 @@
 name = "zakhrafa-tech"
+main = "worker.js"
 compatibility_date = "2024-01-01"
-pages_build_output_dir = "html"
+
+routes = [
+  { pattern = "zakhrafa.tech", custom_domain = true },
+  { pattern = "www.zakhrafa.tech", custom_domain = true }
+]
+
+workers_dev = true
+
+[assets]
+directory = "html"
+binding = "ASSETS"
