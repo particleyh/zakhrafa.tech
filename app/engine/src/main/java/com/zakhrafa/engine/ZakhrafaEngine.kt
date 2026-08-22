@@ -46,11 +46,18 @@ object ZakhrafaEngine {
     }
 
     fun applyEnglishStyle(text: String, style: StyleMap): String {
-        val low = text.lowercase()
         return when {
-            style.map.isNotEmpty() -> mapChars(low, style.map)
-            style.range != null -> rangeMap(low, style.range.first, style.range.second, style.range.third)
-            style.special != null -> applySpecialEnStyle(low, style.special)
+            style.map.isNotEmpty() -> buildString {
+                text.forEach { char ->
+                    append(
+                        style.map[char.toString()]
+                            ?: style.map[char.lowercaseChar().toString()]
+                            ?: char
+                    )
+                }
+            }
+            style.range != null -> rangeMap(text, style.range.first, style.range.second, style.range.third)
+            style.special != null -> applySpecialEnStyle(text, style.special)
             else -> text
         }
     }
@@ -129,10 +136,11 @@ object ZakhrafaEngine {
             }
         }
 
-        // Logic: Show relevant blocks based on filter
-        val showAr = filter == "all" || filter == "arabic" || isPlat
-        val showEn = filter == "all" || filter == "english" || filter == "complex" || isPlat
-        val showSymbols = filter == "all" || filter == "symbols" || isPlat
+        // Each filter stays focused. Platform filters add their own curated results only.
+        val showAr = filter == "all" || filter == "arabic"
+        val showEn = filter == "all" || filter == "english"
+        val showComplex = filter == "all" || filter == "complex"
+        val showSymbols = filter == "all" || filter == "symbols"
 
         fun addPlatformResults(platformId: String) {
             val pSyms = when (platformId) {
@@ -177,7 +185,7 @@ object ZakhrafaEngine {
                     add(CoolnamesStyles.apply(text, i), name, "ar-coolnames")
                 }
             }
-            add(zalgo(text, 1), "عربي زالجو", "ar-effect")
+            if (hasAr) add(zalgo(text, 1), "عربي زالجو", "ar-effect")
         }
 
         if (showEn) {
@@ -185,12 +193,13 @@ object ZakhrafaEngine {
             ProfessionalStyles.english.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
             TotalStyles.english.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
             
-            if (filter == "all" || filter == "complex") {
-                Decorations.complex.forEachIndexed { i, template ->
-                    add(complexDecorate(text, template), "نادرة ${i + 1}", "complex")
-                }
+            if (hasEn) add(zalgo(text, 2), "English Zalgo", "en-effect")
+        }
+
+        if (showComplex) {
+            Decorations.complex.forEachIndexed { i, template ->
+                add(complexDecorate(text, template), "نادرة ${i + 1}", "complex")
             }
-            add(zalgo(text, 2), "English Zalgo", "en-effect")
         }
 
         if (showSymbols) {

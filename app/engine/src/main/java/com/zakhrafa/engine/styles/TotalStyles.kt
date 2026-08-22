@@ -1,8 +1,17 @@
 package com.zakhrafa.engine.styles
 import com.zakhrafa.engine.models.StyleMap
 object TotalStyles {
-private fun mapAr(chars: String): Map<String, String> { val keys = "ضصثقفغعهخحجشسيبلاتنمكطئؤظذدزروة".split("-"); val values = chars.split("-"); val m = mutableMapOf<String, String>(); for (i in 0 until minOf(keys.size, values.size)) m[keys[i]] = values[i]; return m; }
-private fun mapEn(chars: String): Map<String, String> { val keys = "qwertyuiopasdfghjklzxcvbnm".split("-"); val values = chars.split("-"); val m = mutableMapOf<String, String>(); for (i in 0 until minOf(keys.size, values.size)) m[keys[i]] = values[i]; return m; }
+private fun mapAr(chars: String): Map<String, String> {
+    val keys = "ضصثقفغعهخحجشسيبلاتنمكطئؤظذدزروة".map(Char::toString)
+    val values = chars.split("-")
+    return keys.zip(values).toMap()
+}
+
+private fun mapEn(chars: String): Map<String, String> {
+    val keys = "qwertyuiopasdfghjklzxcvbnm".map(Char::toString)
+    val values = chars.split("-")
+    return keys.zip(values).toMap()
+}
 val arabic = listOf(
 StyleMap("Ar Style 1", "ar-legacy", mapAr("ض-ص-ث-ق-ف-غ-ع-ه-خ-ح-ج-ش-س-ي-ب-ل-ا-ت-ن-م-ك-ط-ئ-ؤ-ظ-ذ-د-ز-ر-و-ة")),
 StyleMap("Ar Style 2", "ar-legacy", mapAr("ضّ-صٌ-ثّ-قِ-فِّ-غٌ-عٌ-هِ-خَ-حٌ-جِ-شٍ-َّس-يِّ-بِ-لَ-آ-تّ-نِ-مَ-ګ-طّ-ئ-ؤ-ظّ-ذّ-دِ-زِّ-ر-وِ-ةّ")),

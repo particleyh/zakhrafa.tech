@@ -4,7 +4,7 @@ import com.zakhrafa.engine.models.StyleMap
 
 object LegacyStyles {
     private fun mapAr(chars: String): Map<String, String> {
-        val keys = "ضصثقفغعهخحجشسيبلاتنمكطئؤظذدزروة".split("-")
+        val keys = "ضصثقفغعهخحجشسيبلاتنمكطئؤظذدزروة".map(Char::toString)
         val values = chars.split("-")
         val m = mutableMapOf<String, String>()
         for (i in 0 until minOf(keys.size, values.size)) {
@@ -14,7 +14,7 @@ object LegacyStyles {
     }
 
     private fun mapEn(chars: String): Map<String, String> {
-        val keys = "qwertyuiopasdfghjklzxcvbnm".split("-")
+        val keys = "qwertyuiopasdfghjklzxcvbnm".map(Char::toString)
         val values = chars.split("-")
         val m = mutableMapOf<String, String>()
         for (i in 0 until minOf(keys.size, values.size)) {
