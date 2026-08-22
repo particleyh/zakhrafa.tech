@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,7 +24,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -61,34 +58,17 @@ internal fun AboutScreen() {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("خصوصيتك أولاً", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "الزخرفة تحدث كلها على جهازك. لا حسابات، لا إعلانات، لا تتبع، ولا نرسل ما تكتبه إلى أي خادم.",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    OutlinedButton(onClick = { openUrl(context, PRIVACY_URL) }) {
-                        Text("قراءة سياسة الخصوصية")
-                    }
+            InfoCard(title = "خصوصيتك") {
+                Text(
+                    "كل الزخرفة تتم على جهازك، بلا حساب أو تتبع أو إرسال لما تكتبه.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { openUrl(context, PRIVACY_URL) }) {
+                    Text("سياسة الخصوصية")
                 }
-            }
-        }
-
-        item {
-            InfoCard(title = "لماذا زخرفة مزخرف؟") {
-                InfoLine("✦", "مئات الأشكال العربية والإنجليزية")
-                InfoLine("♡", "مفضلة محلية للرجوع السريع")
-                InfoLine("⚡", "نسخ ومشاركة بلمسة واحدة")
-                InfoLine("☾", "وضع ليلي مريح للعين")
             }
         }
 
@@ -103,7 +83,7 @@ internal fun AboutScreen() {
         item {
             InfoCard(title = "بياناتك على جهازك") {
                 Text(
-                    "يمكنك مسح كل المفضلة والعناصر المنسوخة وإعاداد المظهر من داخل التطبيق.",
+                    "امسح المفضلة وسجل النسخ وإعداد المظهر.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedButton(onClick = { showDataResetDialog = true }) {
@@ -144,27 +124,17 @@ internal fun AboutScreen() {
 @Composable
 private fun InfoCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             content()
         }
-    }
-}
-
-@Composable
-private fun InfoLine(icon: String, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
-            Text(icon, modifier = Modifier.padding(8.dp))
-        }
-        Text(text, modifier = Modifier.weight(1f))
     }
 }
 

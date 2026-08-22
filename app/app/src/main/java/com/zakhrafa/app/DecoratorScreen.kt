@@ -1,28 +1,23 @@
 package com.zakhrafa.app
 
 import android.widget.Toast
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -32,7 +27,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,12 +45,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zakhrafa.engine.ZakhrafaEngine
@@ -78,7 +72,7 @@ private val categories = listOf(
 
 @Composable
 internal fun DecoratorScreen() {
-    var text by rememberSaveable { mutableStateOf("زخرفة") }
+    var text by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -89,19 +83,16 @@ internal fun DecoratorScreen() {
     val selectedLabel = categories.firstOrNull { it.first == filter }?.second ?: "الكل"
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(300.dp),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        columns = GridCells.Adaptive(320.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            GeneratorCard(
+            InputCard(
                 text = text,
-                filter = filter,
                 resultCount = results.size,
-                favoriteCount = favorites.size,
                 onTextChange = { text = limitInput(it) },
-                onFilterChange = { filter = it },
                 onClear = { text = "" },
                 onPaste = {
                     readClipboard(context)?.let { text = limitInput(it) }
@@ -112,14 +103,30 @@ internal fun DecoratorScreen() {
         }
 
         item(span = { GridItemSpan(maxLineSpan) }) {
-            ResultsSummary(
-                label = selectedLabel,
-                count = results.size,
-                canShare = results.isNotEmpty(),
-                onShare = {
-                    shareText(context, results.take(40).joinToString("\n") { it.text })
+            LazyRow(
+                contentPadding = PaddingValues(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                items(categories) { (id, label) ->
+                    CategoryChip(
+                        label = label,
+                        selected = filter == id,
+                        onClick = { filter = id }
+                    )
                 }
-            )
+            }
+        }
+
+        if (results.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ResultsSummary(
+                    label = selectedLabel,
+                    count = results.size,
+                    onShare = {
+                        shareText(context, results.take(40).joinToString("\n") { it.text })
+                    }
+                )
+            }
         }
 
         if (results.isEmpty()) {
@@ -145,145 +152,54 @@ internal fun DecoratorScreen() {
 }
 
 @Composable
-private fun GeneratorCard(
+private fun InputCard(
     text: String,
-    filter: String,
     resultCount: Int,
-    favoriteCount: Int,
     onTextChange: (String) -> Unit,
-    onFilterChange: (String) -> Unit,
     onClear: () -> Unit,
     onPaste: () -> Unit,
     onRandomCopy: () -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f)
-                        )
-                    )
-                )
-                .padding(18.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "زخرف اسمك بذوقك",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            "انسخ، شارك، واحفظ الأشكال التي تعجبك",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
-                    ) {
-                        Text(
-                            "بدون إنترنت",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    label = { Text("اكتب الاسم أو النص") },
-                    supportingText = { Text("${text.codePointCount(0, text.length)} / $MAX_INPUT_LENGTH") },
-                    textStyle = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        textDirection = TextDirection.Content
-                    ),
-                    trailingIcon = {
-                        if (text.isNotEmpty()) {
-                            IconButton(onClick = onClear) {
-                                Icon(Icons.Default.Clear, contentDescription = "مسح النص")
-                            }
+        Column(modifier = Modifier.padding(12.dp)) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                shape = RoundedCornerShape(14.dp),
+                placeholder = { Text("اكتب اسماً أو نصاً") },
+                textStyle = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    textDirection = TextDirection.Content
+                ),
+                trailingIcon = {
+                    if (text.isNotEmpty()) {
+                        IconButton(onClick = onClear) {
+                            Icon(Icons.Default.Clear, contentDescription = "مسح النص")
                         }
                     }
-                )
-
-                Spacer(Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(onClick = onPaste, modifier = Modifier.weight(1f)) {
-                        Text("لصق")
-                    }
-                    FilledTonalButton(
-                        onClick = onRandomCopy,
-                        enabled = resultCount > 0,
-                        modifier = Modifier.weight(2f)
-                    ) {
-                        Text("فاجئني وانسخ")
-                    }
                 }
+            )
 
-                Spacer(Modifier.height(14.dp))
-
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(categories) { (id, label) ->
-                        CategoryChip(
-                            label = label,
-                            selected = filter == id,
-                            onClick = { onFilterChange(id) }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatPill("النتائج", resultCount.toString())
-                    StatPill("المفضلة", favoriteCount.toString())
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onPaste) { Text("لصق") }
+                TextButton(onClick = onRandomCopy, enabled = resultCount > 0) {
+                    Text("اختيار عشوائي")
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun StatPill(label: String, value: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(value, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-            Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -299,15 +215,14 @@ internal fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit)
     ) {
         Text(
             label,
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+            fontSize = 13.sp
         )
     }
 }
 
 @Composable
-private fun ResultsSummary(label: String, count: Int, canShare: Boolean, onShare: () -> Unit) {
+private fun ResultsSummary(label: String, count: Int, onShare: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -315,14 +230,13 @@ private fun ResultsSummary(label: String, count: Int, canShare: Boolean, onShare
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text("نتائج $label", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-            Text("$count شكل جاهز", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TextButton(onClick = onShare, enabled = canShare) {
-            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("مشاركة مجموعة")
+        Text(
+            "$count نتيجة · $label",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        IconButton(onClick = onShare) {
+            Icon(Icons.Default.Share, contentDescription = "مشاركة النتائج")
         }
     }
 }
@@ -335,35 +249,30 @@ internal fun ResultCard(
 ) {
     val context = LocalContext.current
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .clickable { copyToClipboard(context, result.text) }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    shape = RoundedCornerShape(999.dp),
-                    modifier = Modifier.widthIn(max = 220.dp)
-                ) {
-                    Text(
-                        result.style,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                IconButton(onClick = onFavorite) {
+                Text(
+                    result.style,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+                IconButton(onClick = onFavorite, modifier = Modifier.size(40.dp)) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (isFavorite) "إزالة من المفضلة" else "إضافة للمفضلة",
@@ -372,23 +281,17 @@ internal fun ResultCard(
                 }
             }
 
-            Surface(
+            Text(
+                result.text,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { copyToClipboard(context, result.text) },
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    result.text,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 20.dp),
-                    textAlign = TextAlign.Center,
-                    fontSize = 21.sp,
-                    lineHeight = 31.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content)
-                )
-            }
+                    .padding(vertical = 8.dp),
+                textAlign = TextAlign.Center,
+                fontSize = 21.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content)
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -397,14 +300,14 @@ internal fun ResultCard(
                 Button(
                     onClick = { copyToClipboard(context, result.text) },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("نسخ", fontWeight = FontWeight.ExtraBold)
+                    Text("نسخ")
                 }
                 OutlinedButton(
                     onClick = { shareText(context, result.text) },
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 18.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
                 ) {
                     Icon(Icons.Default.Share, contentDescription = "مشاركة", modifier = Modifier.size(18.dp))
                 }
