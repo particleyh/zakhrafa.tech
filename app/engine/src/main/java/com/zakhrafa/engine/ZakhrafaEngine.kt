@@ -178,6 +178,7 @@ object ZakhrafaEngine {
 
         if (showAr) {
             ArabicStyles.all.forEach { s -> add(mapChars(text, s.map), s.name, s.category) }
+            LegacyStyles.arabic.forEach { s -> add(mapChars(text, s.map), s.name, s.category) }
             ProfessionalStyles.arabic.forEach { s -> add(mapChars(text, s.map), s.name, s.category) }
             TotalStyles.arabic.forEach { s -> add(mapChars(text, s.map), s.name, s.category) }
             if (hasAr) {
@@ -190,6 +191,7 @@ object ZakhrafaEngine {
 
         if (showEn) {
             EnglishStyles.all.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
+            LegacyStyles.english.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
             ProfessionalStyles.english.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
             TotalStyles.english.forEach { s -> add(applyEnglishStyle(text, s), s.name, s.category) }
             
@@ -216,8 +218,8 @@ object ZakhrafaEngine {
     }
 
     fun countStyles(): Int {
-        return ArabicStyles.all.size + ProfessionalStyles.arabic.size + TotalStyles.arabic.size +
-                EnglishStyles.all.size + ProfessionalStyles.english.size + TotalStyles.english.size +
+        return ArabicStyles.all.size + LegacyStyles.arabic.size + ProfessionalStyles.arabic.size + TotalStyles.arabic.size +
+                EnglishStyles.all.size + LegacyStyles.english.size + ProfessionalStyles.english.size + TotalStyles.english.size +
                 Decorations.complex.size + Decorations.side.size +
                 CoolnamesStyles.styleNames.size
     }

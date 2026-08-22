@@ -70,6 +70,8 @@ private val categories = listOf(
     "facebook" to "Facebook"
 )
 
+private data class PreviewExample(val input: String, val decorated: String)
+
 @Composable
 internal fun DecoratorScreen() {
     var text by rememberSaveable { mutableStateOf("") }
@@ -131,11 +133,7 @@ internal fun DecoratorScreen() {
 
         if (results.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                EmptyState(
-                    icon = "✦",
-                    title = "اكتب اسماً أو نصاً",
-                    subtitle = "ستظهر لك الزخارف مباشرة"
-                )
+                StarterPreview(onSelect = { text = it })
             }
         } else {
             items(results, key = { "${it.category}:${it.style}:${it.text}" }) { result ->
@@ -149,6 +147,67 @@ internal fun DecoratorScreen() {
             }
         }
     }
+}
+
+@Composable
+private fun StarterPreview(onSelect: (String) -> Unit) {
+    val examples = remember {
+        listOf(
+            previewExample("محمد", "arabic", "ar-legacy"),
+            previewExample("Zakhrafa", "english", "en-legacy")
+        )
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("معاينة سريعة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("اضغط على مثال لتجربته", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            examples.forEach { example ->
+                Surface(
+                    onClick = { onSelect(example.input) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                example.input,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                example.decorated,
+                                style = MaterialTheme.typography.titleLarge.copy(textDirection = TextDirection.Content),
+                                maxLines = 2
+                            )
+                        }
+                        Text("جرّب", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun previewExample(input: String, filter: String, preferredCategory: String): PreviewExample {
+    val results = ZakhrafaEngine.generateAll(input, filter)
+    val decorated = results.firstOrNull { it.category == preferredCategory }?.text
+        ?: results.firstOrNull()?.text
+        ?: input
+    return PreviewExample(input, decorated)
 }
 
 @Composable

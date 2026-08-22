@@ -1,6 +1,7 @@
 package com.zakhrafa.engine
 
 import com.zakhrafa.engine.styles.EnglishStyles
+import com.zakhrafa.engine.styles.LegacyStyles
 import com.zakhrafa.engine.styles.TotalStyles
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,6 +36,16 @@ class ZakhrafaEngineTest {
         assertTrue(symbols.all { it.category == "symbols" })
         assertTrue(platform.isNotEmpty())
         assertTrue(platform.all { it.category == "platform" })
+    }
+
+    @Test
+    fun generatorIncludesStylesSharedWithKeyboardCatalog() {
+        val arabic = ZakhrafaEngine.generateAll("محمد", "arabic")
+        val english = ZakhrafaEngine.generateAll("Zakhrafa", "english")
+
+        assertTrue(arabic.any { it.category == "ar-legacy" })
+        assertTrue(english.any { it.category == "en-legacy" })
+        assertTrue(ZakhrafaEngine.countStyles() >= LegacyStyles.arabic.size + LegacyStyles.english.size)
     }
 
     @Test
