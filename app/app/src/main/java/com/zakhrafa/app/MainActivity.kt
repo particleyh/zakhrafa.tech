@@ -208,7 +208,7 @@ private fun MainScreen(darkTheme: Boolean, onToggleTheme: () -> Unit) {
 private fun BrandTitle() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Image(
-            painter = painterResource(R.mipmap.ic_launcher),
+            painter = painterResource(R.drawable.zakhrafa_brand),
             contentDescription = null,
             modifier = Modifier.size(36.dp)
         )
