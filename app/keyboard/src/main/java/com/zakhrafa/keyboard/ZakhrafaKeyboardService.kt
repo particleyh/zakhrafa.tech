@@ -302,7 +302,6 @@ class ZakhrafaKeyboardService : InputMethodService() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
-        idleControls.addView(renderer.controlButton("⚙", widthDp = 40) { openKeyboardSettings() })
         if (isSensitiveEditor()) {
             idleControls.addView(renderer.controlButton("🔒  وضع خاص", widthDp = 128) {})
         } else {
@@ -432,6 +431,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
     internal fun enter() = inputHandler.enter()
 
     internal fun enterKeyLabel(): String {
+        if (shouldInsertNewline()) return "⏎"
         return when (currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)) {
             EditorInfo.IME_ACTION_SEND -> "➤"
             EditorInfo.IME_ACTION_SEARCH -> "⌕"
@@ -439,6 +439,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
             EditorInfo.IME_ACTION_NEXT, EditorInfo.IME_ACTION_GO -> "→"
             else -> "⏎"
         }
+    }
+
+    internal fun shouldInsertNewline(): Boolean {
+        val info = currentInputEditorInfo ?: return false
+        return shouldInsertNewlineForEditor(info.inputType, info.imeOptions)
     }
 
     internal fun moveCursor(steps: Int) {
@@ -667,19 +672,6 @@ class ZakhrafaKeyboardService : InputMethodService() {
         val configured = dp(keyboardPrefs.keyHeightDp)
         val minimum = if (isLandscape) dp(32) else dp(40)
         return configured.coerceIn(minimum, adaptive.coerceAtLeast(minimum))
-    }
-
-    private fun openKeyboardSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    }
-
-    private fun openBackgroundPicker() {
-        startActivity(Intent(this, SettingsActivity::class.java).apply {
-            action = SettingsActivity.ACTION_PICK_BACKGROUND
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
     }
 
     internal fun openClipboard() {

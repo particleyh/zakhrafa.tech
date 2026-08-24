@@ -758,10 +758,9 @@ class SettingsActivity : ComponentActivity() {
             addView(LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(dp(2), 0, dp(2), dp(5))
-                addView(previewControl("⚙", theme, 0.8f))
-                addView(previewControl("🖼", theme, 0.8f))
+                addView(previewControl("📋", theme, 0.8f))
                 addView(previewControl("اختيار زخرفة", theme, 3f))
-                addView(previewControl("الغاء الزخرفة", theme, 2.4f))
+                addView(previewControl("إلغاء", theme, 1.4f))
             })
 
             previewRows(isEnglish, showNumbers, wideSpacebar).forEach { row ->
@@ -778,7 +777,10 @@ class SettingsActivity : ComponentActivity() {
 
     private fun previewRows(isEnglish: Boolean, showNumbers: Boolean, wideSpacebar: Boolean): List<List<String>> {
         val rows = mutableListOf<List<String>>()
-        if (showNumbers) rows.add("1234567890".map { it.toString() })
+        if (showNumbers) {
+            val digits = if (isEnglish) ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT else ARABIC_NUMBER_ROW_LEFT_TO_RIGHT
+            rows.add(digits.map { it.toString() })
+        }
         if (isEnglish) {
             rows.add("qwertyuiop".map { it.toString() })
             rows.add("asdfghjkl".map { it.toString() })

@@ -17,6 +17,13 @@ import android.widget.TextView
 
 internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
 
+    private data class VariantPopup(
+        val window: PopupWindow,
+        val choices: List<Pair<TextView, String>>
+    )
+
+    private var activeVariantPopup: VariantPopup? = null
+
     fun keyView(key: KeyboardLayouts.KeySpec): View {
         return FrameLayout(svc).apply {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -77,8 +84,46 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                 isLongClickable = true
                 setOnLongClickListener {
                     svc.tapFeedback(this)
-                    showVariantPopup(this, key.longPress)
+                    if (key.longPress.size == 1) {
+                        // A visible one-key shortcut should type immediately. Requiring
+                        // a second tap made the shortcut look broken to users.
+                        svc.commitKey(key.longPress.first())
+                    } else {
+                        activeVariantPopup?.window?.dismiss()
+                        activeVariantPopup = showVariantPopup(this, key.longPress)
+                    }
                     true
+                }
+                if (key.longPress.size > 1) {
+                    setOnTouchListener { _, event ->
+                        val active = activeVariantPopup ?: return@setOnTouchListener false
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_MOVE -> {
+                                val selected = choiceAt(active, event.rawX, event.rawY)
+                                active.choices.forEach { (view, value) ->
+                                    view.alpha = if (value == selected) 0.65f else 1f
+                                }
+                                false
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                val selected = choiceAt(active, event.rawX, event.rawY)
+                                active.window.dismiss()
+                                activeVariantPopup = null
+                                if (selected != null) {
+                                    svc.commitKey(selected)
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            MotionEvent.ACTION_CANCEL -> {
+                                active.window.dismiss()
+                                activeVariantPopup = null
+                                false
+                            }
+                            else -> false
+                        }
+                    }
                 }
             }
 
@@ -240,8 +285,8 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
         }
     }
 
-    private fun showVariantPopup(anchor: View, variants: List<String>) {
-        if (!anchor.isAttachedToWindow) return
+    private fun showVariantPopup(anchor: View, variants: List<String>): VariantPopup? {
+        if (!anchor.isAttachedToWindow) return null
         val row = LinearLayout(svc).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -253,15 +298,21 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
             row,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            true
+            false
         ).apply {
+            isTouchable = true
             isOutsideTouchable = true
+            inputMethodMode = PopupWindow.INPUT_METHOD_NOT_NEEDED
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             elevation = svc.dp(10).toFloat()
+            setOnDismissListener {
+                if (activeVariantPopup?.window === this) activeVariantPopup = null
+            }
         }
 
+        val choices = mutableListOf<Pair<TextView, String>>()
         variants.forEach { value ->
-            row.addView(TextView(svc).apply {
+            val choice = TextView(svc).apply {
                 text = value
                 textSize = if (value.length > 1) 18f else 22f
                 typeface = Typeface.DEFAULT_BOLD
@@ -275,12 +326,15 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                 }
                 setOnClickListener {
                     try { popup.dismiss() } catch (_: Exception) {}
+                    activeVariantPopup = null
                     svc.commitKey(value)
                 }
-            })
+            }
+            choices += choice to value
+            row.addView(choice)
         }
 
-        try {
+        return try {
             row.measure(
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
@@ -290,7 +344,19 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
             val xOffset = anchor.width / 2 - row.measuredWidth / 2
             val yOffset = -anchor.height - row.measuredHeight - svc.dp(8)
             popup.showAsDropDown(anchor, xOffset, yOffset, Gravity.NO_GRAVITY)
-        } catch (_: Exception) {}
+            VariantPopup(popup, choices)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun choiceAt(popup: VariantPopup, rawX: Float, rawY: Float): String? {
+        val location = IntArray(2)
+        return popup.choices.firstOrNull { (view, _) ->
+            view.getLocationOnScreen(location)
+            rawX >= location[0] && rawX < location[0] + view.width &&
+                rawY >= location[1] && rawY < location[1] + view.height
+        }?.second
     }
 
     private fun keyContentDescription(key: KeyboardLayouts.KeySpec): String {

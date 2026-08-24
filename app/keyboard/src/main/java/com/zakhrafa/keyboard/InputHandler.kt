@@ -7,6 +7,17 @@ import android.view.inputmethod.ExtractedTextRequest
 import com.zakhrafa.keyboard.core.InputSession
 import com.zakhrafa.keyboard.core.KeyboardMode
 
+internal fun shouldInsertNewlineForEditor(inputType: Int, imeOptions: Int): Boolean {
+    val action = imeOptions and EditorInfo.IME_MASK_ACTION
+    val multiline = inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+    val actionDisabled = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
+    return actionDisabled || (multiline && action in setOf(
+        EditorInfo.IME_ACTION_NONE,
+        EditorInfo.IME_ACTION_UNSPECIFIED,
+        EditorInfo.IME_ACTION_SEARCH
+    ))
+}
+
 internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     private val session = InputSession()
     private val snapshotRequest = ExtractedTextRequest().apply {
@@ -80,6 +91,10 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
         svc.resetCurrentWord()
         svc.clearSuggestions()
         val connection = svc.currentInputConnection ?: return
+        if (svc.shouldInsertNewline()) {
+            runCatching { connection.commitText("\n", 1) }
+            return
+        }
         val action = svc.currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
             ?: EditorInfo.IME_ACTION_NONE
         val handledByEditor = action != EditorInfo.IME_ACTION_NONE &&

@@ -7,6 +7,8 @@ import android.view.View
 internal const val PHYSICAL_KEY_ROW_DIRECTION = View.LAYOUT_DIRECTION_LTR
 internal const val ARABIC_TOP_ROW_LEFT_TO_RIGHT = "ضصثقفغعهخحج"
 internal const val ARABIC_HOME_ROW_LEFT_TO_RIGHT = "شسيبلاتنمكط"
+internal const val ARABIC_NUMBER_ROW_LEFT_TO_RIGHT = "١٢٣٤٥٦٧٨٩٠"
+internal const val ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT = "1234567890"
 
 internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
@@ -30,7 +32,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun arabicRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow) rows.add(numberRow())
+        if (svc.keyboardPrefs.numberRow) rows.add(numberRow(arabicDigits = true))
         rows.add(ARABIC_TOP_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(ARABIC_HOME_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(listOf(
@@ -166,8 +168,9 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         )
     }
 
-    fun numberRow(): List<KeySpec> {
-        return "1234567890".map { KeySpec(it.toString()) }
+    fun numberRow(arabicDigits: Boolean = false): List<KeySpec> {
+        val digits = if (arabicDigits) ARABIC_NUMBER_ROW_LEFT_TO_RIGHT else ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT
+        return digits.map { KeySpec(it.toString()) }
     }
 
     fun longPressHint(key: KeySpec): String? {

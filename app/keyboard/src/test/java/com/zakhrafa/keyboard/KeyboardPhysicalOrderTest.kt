@@ -17,4 +17,10 @@ class KeyboardPhysicalOrderTest {
         assertEquals('ش', ARABIC_HOME_ROW_LEFT_TO_RIGHT.first())
         assertEquals('ط', ARABIC_HOME_ROW_LEFT_TO_RIGHT.last())
     }
+
+    @Test
+    fun numberRowsUseDigitsForTheirLanguage() {
+        assertEquals("١٢٣٤٥٦٧٨٩٠", ARABIC_NUMBER_ROW_LEFT_TO_RIGHT)
+        assertEquals("1234567890", ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT)
+    }
 }
