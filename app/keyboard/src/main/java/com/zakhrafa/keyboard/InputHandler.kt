@@ -4,6 +4,7 @@ import android.os.Build
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
+import android.view.inputmethod.InputConnection
 import com.zakhrafa.keyboard.core.InputSession
 import com.zakhrafa.keyboard.core.KeyboardMode
 
@@ -25,6 +26,8 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
         hintMaxChars = 2048
         hintMaxLines = 10
     }
+    private var selectionStart = -1
+    private var selectionEnd = -1
 
     fun isWordCharacter(c: Char): Boolean {
         val code = c.code
@@ -76,8 +79,16 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     }
 
     fun deleteOne() {
+        if (hasTrackedSelection() && deleteTrackedSelection(svc.currentInputConnection)) {
+            resetCurrentWord()
+            svc.clearSuggestions()
+            return
+        }
         val fallbackLength = svc.currentOutputLengths.lastOrNull() ?: 1
-        if (runCatching { session.delete(svc.currentInputConnection, fallbackLength) }.isFailure) {
+        val deleted = runCatching {
+            session.delete(svc.currentInputConnection, fallbackLength)
+        }.getOrDefault(false)
+        if (!deleted) {
             resetCurrentWord()
             svc.clearSuggestions()
             return
@@ -132,6 +143,8 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
 
     fun resetCurrentWord() {
         session.reset()
+        selectionStart = -1
+        selectionEnd = -1
         svc.currentWord = ""
         svc.currentCommittedLength = 0
         svc.currentOutputLengths.clear()
@@ -181,6 +194,8 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
 
     /** A send/reset normally returns the composing cursor to the first position. */
     fun onEditorSelectionChanged(selectionStart: Int, selectionEnd: Int) {
+        this.selectionStart = selectionStart
+        this.selectionEnd = selectionEnd
         if (svc.currentWord.isNotBlank() && selectionStart == 0 && selectionEnd == 0) {
             resetCurrentWord()
             svc.clearSuggestions()
@@ -192,4 +207,22 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     private fun isVisuallyEmptyCharacter(char: Char): Boolean =
         char.isWhitespace() || char == '\u200E' || char == '\u200F' ||
             char in '\u202A'..'\u202E' || char in '\u2066'..'\u2069' || char == '\uFEFF'
+
+    private fun hasTrackedSelection(): Boolean =
+        selectionStart >= 0 && selectionEnd >= 0 && selectionStart != selectionEnd
+
+    /**
+     * Most well-behaved editors report selection changes to an IME. Replacing that
+     * selection is more reliable than a surrounding-text delete, which explicitly
+     * does not include the selected range.
+     */
+    private fun deleteTrackedSelection(connection: InputConnection?): Boolean {
+        if (connection == null) return false
+        val batchStarted = runCatching { connection.beginBatchEdit() }.getOrDefault(false)
+        return try {
+            connection.commitText("", 1)
+        } finally {
+            if (batchStarted) runCatching { connection.endBatchEdit() }
+        }
+    }
 }

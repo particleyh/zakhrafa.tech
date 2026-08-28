@@ -19,8 +19,12 @@ class KeyboardPhysicalOrderTest {
     }
 
     @Test
-    fun numberRowsUseDigitsForTheirLanguage() {
+    fun numberRowsKeepWesternDigitsVisibleAndArabicDigitsOneLongPressAway() {
         assertEquals("١٢٣٤٥٦٧٨٩٠", ARABIC_NUMBER_ROW_LEFT_TO_RIGHT)
         assertEquals("1234567890", ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT)
+        assertEquals(
+            listOf("َ", "ُ", "ِ", "ّ", "ْ", "ً", "ٌ", "ٍ", "ٰ"),
+            ARABIC_DIACRITIC_VARIANTS
+        )
     }
 }

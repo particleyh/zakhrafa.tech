@@ -61,29 +61,37 @@ class InputSession {
         }
     }
 
-    fun delete(inputConnection: InputConnection?, fallbackLength: Int = 1) {
-        if (inputConnection == null) return
+    /**
+     * Deletes the editor selection first when there is one. `deleteSurroundingText`
+     * deliberately excludes a selection, so using it alone makes Backspace appear to
+     * do nothing in many chat editors after the user highlights text.
+     */
+    fun delete(inputConnection: InputConnection?, fallbackLength: Int = 1): Boolean {
+        if (inputConnection == null) return false
+        if (deleteSelectedText(inputConnection)) return true
         activeFrame?.let { frame ->
             val prior = tokens.lastOrNull()?.output.orEmpty()
-            if (prior.isNotEmpty()) inputConnection.deleteSurroundingText(prior.length, 0)
+            if (prior.isNotEmpty() && !inputConnection.deleteSurroundingText(prior.length, 0)) return false
             currentWord = currentWord.dropLast(1)
             tokens.clear()
             if (currentWord.isNotEmpty()) {
                 val output = frame.first + currentWord + frame.second
-                inputConnection.commitText(output, 1)
+                if (!inputConnection.commitText(output, 1)) return false
                 tokens.addLast(EmittedToken(currentWord, output))
             } else {
                 activeFrame = null
             }
-            return
+            return true
         }
-        val token = tokens.removeLastOrNull()
+        val token = tokens.lastOrNull()
         if (token != null) {
-            inputConnection.deleteSurroundingText(token.output.length, 0)
+            if (!inputConnection.deleteSurroundingText(token.output.length, 0)) return false
+            tokens.removeLast()
             currentWord = currentWord.dropLast(token.logical.length)
         } else {
-            inputConnection.deleteSurroundingText(fallbackLength.coerceAtLeast(1), 0)
+            return inputConnection.deleteSurroundingText(fallbackLength.coerceAtLeast(1), 0)
         }
+        return true
     }
 
     fun replaceWord(inputConnection: InputConnection?, replacement: String, fallbackLength: Int = 0) {
@@ -107,5 +115,18 @@ class InputSession {
         tokens.clear()
         tokens.addLast(EmittedToken(currentWord, output))
         activeFrame = frame
+    }
+
+    private fun deleteSelectedText(inputConnection: InputConnection): Boolean {
+        val selected = runCatching { inputConnection.getSelectedText(0) }.getOrNull()
+        if (selected.isNullOrEmpty()) return false
+        val batchStarted = runCatching { inputConnection.beginBatchEdit() }.getOrDefault(false)
+        return try {
+            inputConnection.commitText("", 1).also { deleted ->
+                if (deleted) reset()
+            }
+        } finally {
+            if (batchStarted) runCatching { inputConnection.endBatchEdit() }
+        }
     }
 }

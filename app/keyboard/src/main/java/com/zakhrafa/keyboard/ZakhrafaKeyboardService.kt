@@ -1,10 +1,6 @@
 package com.zakhrafa.keyboard
 
-import android.annotation.SuppressLint
-import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
@@ -191,15 +187,9 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
     }
 
-    @SuppressLint("ApplySharedPref")
     override fun onWindowShown() {
         super.onWindowShown()
-        AdManager.markFirstUse(this)
         loadSettings(applyDefaultLanguage = false)
-        if (AdManager.isKeyboardLocked(this)) {
-            showLockScreen()
-            return
-        }
         if (::clipboardManager.isInitialized && supportsSuggestions()) {
             clipboardManager.start()
         }
@@ -805,101 +795,6 @@ class ZakhrafaKeyboardService : InputMethodService() {
             mode = if (keyboardPrefs.defaultLanguage == "en") LayoutMode.ENGLISH else LayoutMode.ARABIC
             lastTextMode = mode
         }
-    }
-
-    private fun showLockScreen() {
-        if (!::rootLayout.isInitialized) return
-        rootLayout.removeAllViews()
-        rootLayout.setBackgroundColor(currentTheme.background)
-
-        val lockView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(24), dp(40), dp(24), dp(40))
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        lockView.addView(TextView(this).apply {
-            text = "🔒"
-            textSize = 48f
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        })
-
-        lockView.addView(TextView(this).apply {
-            text = "الكيبورد مغلق"
-            textSize = 20f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(currentTheme.keyTextColor)
-            setPadding(0, dp(12), 0, dp(6))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        })
-
-        lockView.addView(TextView(this).apply {
-            text = "شاهد إعلانًا قصيرًا لفتح الكيبورد\nلديك 10 أيام قبل الإقفال مرة أخرى"
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setTextColor(currentTheme.toolbarTextColor)
-            setPadding(0, 0, 0, dp(16))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        })
-
-        val lockBg = try {
-            val pColor = currentTheme.primaryColor
-            GradientDrawable().apply {
-                setColor(pColor)
-                cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), pColor)
-            }
-        } catch (_: Exception) {
-            GradientDrawable().apply {
-                setColor(0xFF087E6C.toInt())
-                cornerRadius = dp(12).toFloat()
-            }
-        }
-
-        val unlockButton = TextView(this).apply {
-            text = "🎬  شاهد الإعلان وافتح الكيبورد"
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(0xFFFFFFFF.toInt())
-            background = lockBg
-            setPadding(dp(24), dp(14), dp(24), dp(14))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setOnClickListener {
-                try { AdManager.loadRewarded(this@ZakhrafaKeyboardService) } catch (_: Exception) {}
-                val intent = Intent(this@ZakhrafaKeyboardService, SettingsActivity::class.java).apply {
-                    action = SettingsActivity.ACTION_UNLOCK_KEYBOARD
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-            }
-        }
-        lockView.addView(unlockButton)
-
-        rootLayout.addView(lockView)
-    }
-
-    fun refreshAfterUnlock() {
-        loadSettings(applyDefaultLanguage = false)
-        rebuildKeyboard()
     }
 
     override fun onDestroy() {

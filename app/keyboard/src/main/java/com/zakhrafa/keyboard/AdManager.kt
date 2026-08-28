@@ -23,9 +23,7 @@ object AdManager {
     private const val INTERSTITIAL_UNIT_ID = "ca-app-pub-5275292033164657/8389919038"
     private const val REWARDED_UNIT_ID = "ca-app-pub-5275292033164657/7364491834"
 
-    private const val LOCK_INTERVAL_MS = 10L * 24 * 60 * 60 * 1000
     private const val INTERSTITIAL_CAP_MS = 5L * 60 * 1000
-    private const val NEVER_UNLOCKED = -1L
 
     private var interstitial: InterstitialAd? = null
     private var rewardedAd: RewardedAd? = null
@@ -48,35 +46,6 @@ object AdManager {
         } catch (_: Exception) {
             playServicesAvailable = false
         }
-    }
-
-    // ─── 10-Day Keyboard Lock ───────────────────────────────────
-
-    fun isKeyboardLocked(context: Context): Boolean {
-        val p = prefs(context)
-        val lastUnlock = p.getLong("last_unlock_time", NEVER_UNLOCKED)
-        if (lastUnlock == NEVER_UNLOCKED) return false
-        return System.currentTimeMillis() - lastUnlock > LOCK_INTERVAL_MS
-    }
-
-    fun markUnlocked(context: Context) {
-        prefs(context).edit().putLong("last_unlock_time", System.currentTimeMillis()).apply()
-    }
-
-    fun markFirstUse(context: Context) {
-        val p = prefs(context)
-        val v = p.getLong("last_unlock_time", NEVER_UNLOCKED)
-        if (v == NEVER_UNLOCKED) {
-            p.edit().putLong("last_unlock_time", System.currentTimeMillis()).apply()
-        }
-    }
-
-    fun getDaysLeft(context: Context): Int {
-        val lastUnlock = prefs(context).getLong("last_unlock_time", NEVER_UNLOCKED)
-        if (lastUnlock == NEVER_UNLOCKED) return 10
-        val elapsed = System.currentTimeMillis() - lastUnlock
-        val daysUsed = (elapsed / (24 * 60 * 60 * 1000)).toInt()
-        return (10 - daysUsed).coerceIn(0, 10)
     }
 
     // ─── Premium Styles ─────────────────────────────────────────

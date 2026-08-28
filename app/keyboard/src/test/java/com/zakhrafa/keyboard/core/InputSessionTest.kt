@@ -3,6 +3,7 @@ package com.zakhrafa.keyboard.core
 import android.view.inputmethod.InputConnection
 import com.zakhrafa.engine.styles.EnglishStyles
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InputSessionTest {
@@ -44,6 +45,42 @@ class InputSessionTest {
         session.commit(connection, "x", KeyboardMode.ENGLISH, null)
         session.commit(connection, " ", KeyboardMode.ENGLISH, null)
 
+        assertEquals("", session.currentWord)
+    }
+
+    @Test
+    fun deleteReplacesSelectedTextBeforeDeletingThePriorToken() {
+        val committed = mutableListOf<String>()
+        val deletedLengths = mutableListOf<Int>()
+        val selectedConnection = java.lang.reflect.Proxy.newProxyInstance(
+            InputConnection::class.java.classLoader,
+            arrayOf(InputConnection::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getSelectedText" -> "selected text"
+                "commitText" -> {
+                    committed += args?.get(0).toString()
+                    true
+                }
+                "deleteSurroundingText" -> {
+                    deletedLengths += args?.get(0) as Int
+                    true
+                }
+                else -> when (method.returnType) {
+                    Boolean::class.javaPrimitiveType -> true
+                    Int::class.javaPrimitiveType -> 0
+                    Long::class.javaPrimitiveType -> 0L
+                    else -> null
+                }
+            }
+        } as InputConnection
+        val session = InputSession()
+
+        session.commit(selectedConnection, "a", KeyboardMode.ENGLISH, null)
+        assertTrue(session.delete(selectedConnection))
+
+        assertEquals(listOf("a", ""), committed)
+        assertEquals(emptyList<Int>(), deletedLengths)
         assertEquals("", session.currentWord)
     }
 }

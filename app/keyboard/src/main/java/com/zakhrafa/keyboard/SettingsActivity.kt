@@ -36,7 +36,6 @@ class SettingsActivity : ComponentActivity() {
     companion object {
         const val REQUEST_BACKGROUND_IMAGE = 4207
         const val ACTION_PICK_BACKGROUND = "com.keyboard.calligraphy.PICK_BACKGROUND"
-        const val ACTION_UNLOCK_KEYBOARD = "com.keyboard.calligraphy.UNLOCK_KEYBOARD"
         const val ACTION_UNLOCK_STYLE = "com.keyboard.calligraphy.UNLOCK_STYLE"
         const val ACTION_UNLOCK_THEME = "com.keyboard.calligraphy.UNLOCK_THEME"
         const val PLAY_PACKAGE_ID = "com.keyboard.calligraphy"
@@ -59,10 +58,6 @@ class SettingsActivity : ComponentActivity() {
         AdManager.loadRewarded(this)
         AdManager.loadInterstitial(this)
         when (intent?.action) {
-            ACTION_UNLOCK_KEYBOARD -> {
-                showKeyboardUnlock()
-                return
-            }
             ACTION_UNLOCK_STYLE -> {
                 showStyleUnlock(intent.getStringExtra("style_name").orEmpty())
                 return
@@ -83,17 +78,6 @@ class SettingsActivity : ComponentActivity() {
         selectionCheck?.let { selectionHandler.removeCallbacks(it) }
         tutorialDialog?.dismiss()
         super.onDestroy()
-    }
-
-    private fun showKeyboardUnlock() {
-        showRewardUnlock(
-            title = "انتهت مدة استخدام الكيبورد",
-            message = "شاهد إعلان مكافأة واحد لفتح الكيبورد لمدة 10 أيام.",
-            button = "🎬  شاهد الإعلان وافتح الكيبورد"
-        ) {
-            AdManager.markUnlocked(this)
-            Toast.makeText(this, "تم فتح الكيبورد لمدة 10 أيام", Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun showStyleUnlock(styleName: String) {
@@ -188,8 +172,7 @@ class SettingsActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (intent?.action == ACTION_PICK_BACKGROUND) return
-        if (intent?.action == ACTION_UNLOCK_KEYBOARD ||
-            intent?.action == ACTION_UNLOCK_STYLE ||
+        if (intent?.action == ACTION_UNLOCK_STYLE ||
             intent?.action == ACTION_UNLOCK_THEME) {
             return
         }
@@ -778,19 +761,18 @@ class SettingsActivity : ComponentActivity() {
     private fun previewRows(isEnglish: Boolean, showNumbers: Boolean, wideSpacebar: Boolean): List<List<String>> {
         val rows = mutableListOf<List<String>>()
         if (showNumbers) {
-            val digits = if (isEnglish) ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT else ARABIC_NUMBER_ROW_LEFT_TO_RIGHT
-            rows.add(digits.map { it.toString() })
+            rows.add(ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT.map { it.toString() })
         }
         if (isEnglish) {
             rows.add("qwertyuiop".map { it.toString() })
             rows.add("asdfghjkl".map { it.toString() })
             rows.add("zxcvbnm".map { it.toString() } + "⌫")
-            rows.add(if (wideSpacebar) listOf("123", "🌐", "😊", ",", "space", ".", "⏎") else listOf("123", "🌐", "😊", ",", "space", ".", "⏎"))
+            rows.add(if (wideSpacebar) listOf("123", "🌐", ",", "space", "😊", ".", "⏎") else listOf("123", "🌐", ",", "space", "😊", ".", "⏎"))
         } else {
             rows.add("ضصثقفغعهخحج".map { it.toString() })
             rows.add("شسيبلاتنمكط".map { it.toString() })
             rows.add(listOf("ذ", "ء", "ؤ", "ر", "ى", "ة", "و", "ز", "ظ", "د", "⌫"))
-            rows.add(if (wideSpacebar) listOf("123", "🌐", "😊", "،", "مسافة", ".", "⏎") else listOf("123", "🌐", "😊", "،", "مسافة", ".", "⏎"))
+            rows.add(if (wideSpacebar) listOf("123", "🌐", "،", "مسافة", "😊", ".", "⏎") else listOf("123", "🌐", "،", "مسافة", "😊", ".", "⏎"))
         }
         return rows
     }

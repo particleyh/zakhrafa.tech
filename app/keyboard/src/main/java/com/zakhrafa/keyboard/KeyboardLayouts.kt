@@ -9,6 +9,7 @@ internal const val ARABIC_TOP_ROW_LEFT_TO_RIGHT = "ضصثقفغعهخحج"
 internal const val ARABIC_HOME_ROW_LEFT_TO_RIGHT = "شسيبلاتنمكط"
 internal const val ARABIC_NUMBER_ROW_LEFT_TO_RIGHT = "١٢٣٤٥٦٧٨٩٠"
 internal const val ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT = "1234567890"
+internal val ARABIC_DIACRITIC_VARIANTS = listOf("َ", "ُ", "ِ", "ّ", "ْ", "ً", "ٌ", "ٍ", "ٰ")
 
 internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
@@ -32,7 +33,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun arabicRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow) rows.add(numberRow(arabicDigits = true))
+        if (svc.keyboardPrefs.numberRow) rows.add(numberRow())
         rows.add(ARABIC_TOP_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(ARABIC_HOME_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(listOf(
@@ -40,7 +41,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             arabicKey('ى'), arabicKey('ة'), arabicKey('و'), arabicKey('ز'), arabicKey('ظ'), arabicKey('د'),
             KeySpec("⌫", special = true, weight = 1.5f, action = { svc.deleteOne() })
         ))
-        rows.add(bottomRow("مسافة", "؟"))
+        rows.add(bottomRow("مسافة", "،"))
         return rows
     }
 
@@ -88,22 +89,20 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun bottomRow(spaceLabel: String, comma: String): List<KeySpec> {
         val commaLongPress = when (comma) {
-            "؟" -> listOf("!", "،")
-            "،" -> listOf("؟", "!")
+            "،" -> listOf("؟", "!", "؛")
             else -> listOf(".", ";")
         }
         val periodLongPress = when (comma) {
-            "؟" -> listOf("،", "!")
-            "،" -> listOf("!", "؟")
+            "،" -> ARABIC_DIACRITIC_VARIANTS
             else -> listOf(",", "?")
         }
         return if (svc.keyboardPrefs.wideSpacebar) {
             listOf(
                 KeySpec("123", special = true, weight = 1.18f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.SYMBOLS) }),
                 KeySpec("🌐", special = true, weight = 1f, action = { svc.toggleLanguage() }),
-                KeySpec("😊", special = true, weight = 1f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.EMOJI) }),
                 KeySpec(comma, weight = .78f, longPress = commaLongPress),
                 KeySpec(spaceLabel, " ", special = true, weight = 4.9f),
+                KeySpec("😊", special = true, weight = 1f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.EMOJI) }),
                 KeySpec(".", weight = .78f, longPress = periodLongPress),
                 KeySpec(svc.enterKeyLabel(), special = true, weight = 1.42f, action = { svc.enter() })
             )
@@ -111,9 +110,9 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             listOf(
                 KeySpec("123", special = true, weight = 1.14f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.SYMBOLS) }),
                 KeySpec("🌐", special = true, weight = 1f, action = { svc.toggleLanguage() }),
-                KeySpec("😊", special = true, weight = 1f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.EMOJI) }),
                 KeySpec(comma, weight = .78f, longPress = commaLongPress),
                 KeySpec(spaceLabel, " ", special = true, weight = 4.45f),
+                KeySpec("😊", special = true, weight = 1f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.EMOJI) }),
                 KeySpec(".", weight = .78f, longPress = periodLongPress),
                 KeySpec(svc.enterKeyLabel(), special = true, weight = 1.3f, action = { svc.enter() })
             )
@@ -168,9 +167,16 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         )
     }
 
-    fun numberRow(arabicDigits: Boolean = false): List<KeySpec> {
-        val digits = if (arabicDigits) ARABIC_NUMBER_ROW_LEFT_TO_RIGHT else ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT
-        return digits.map { KeySpec(it.toString()) }
+    fun numberRow(): List<KeySpec> {
+        return ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT.mapIndexed { index, digit ->
+            // Western digits are the visible default in both language modes. Arabic
+            // digits stay one long press away, which satisfies both number systems
+            // without stealing a full row from everyday typing.
+            KeySpec(
+                label = digit.toString(),
+                longPress = listOf(ARABIC_NUMBER_ROW_LEFT_TO_RIGHT[index].toString())
+            )
+        }
     }
 
     fun longPressHint(key: KeySpec): String? {
