@@ -13,8 +13,8 @@ android {
         applicationId = "com.keyboard.calligraphy"
         minSdk = 24
         targetSdk = 36
-        versionCode = 57
-        versionName = "5.7"
+        versionCode = 58
+        versionName = "5.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true

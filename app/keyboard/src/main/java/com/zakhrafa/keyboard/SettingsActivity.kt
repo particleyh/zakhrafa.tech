@@ -51,6 +51,9 @@ class SettingsActivity : ComponentActivity() {
     private var autoOpenedBackgroundPicker = false
     private val selectionHandler = Handler(Looper.getMainLooper())
     private var selectionCheck: Runnable? = null
+    private val rewardHandler = Handler(Looper.getMainLooper())
+    private var rewardRetry: Runnable? = null
+    private var rewardRequestCancel: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +79,8 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onDestroy() {
         selectionCheck?.let { selectionHandler.removeCallbacks(it) }
+        rewardRetry?.let { rewardHandler.removeCallbacks(it) }
+        rewardRequestCancel?.invoke()
         tutorialDialog?.dismiss()
         super.onDestroy()
     }
@@ -88,8 +93,7 @@ class SettingsActivity : ComponentActivity() {
         showRewardUnlock(
             title = "فتح زخرفة مميزة",
             message = "شاهد إعلان مكافأة واحد لفتح هذه الزخرفة بشكل دائم.",
-            button = "🎬  شاهد الإعلان وافتح الزخرفة",
-            allowInterstitialFallback = true
+            button = "🎬  شاهد الإعلان وافتح الزخرفة"
         ) {
             AdManager.unlockPremiumStyle(this, styleName)
             Toast.makeText(this, "تم فتح الزخرفة", Toast.LENGTH_SHORT).show()
@@ -117,7 +121,6 @@ class SettingsActivity : ComponentActivity() {
         title: String,
         message: String,
         button: String,
-        allowInterstitialFallback: Boolean = false,
         onReward: () -> Unit
     ) {
         val theme = selectedTheme()
@@ -147,26 +150,76 @@ class SettingsActivity : ComponentActivity() {
             setTextColor(theme.toolbarTextColor)
             setPadding(0, 0, 0, dp(18))
         })
-        screen.addView(choice(button, false, prominent = true) {
-            val rewardedShown = AdManager.hasRewardedReady() && AdManager.showRewarded(this) {
-                    onReward()
-                    finish()
-                }
-            if (!rewardedShown) {
-                if (allowInterstitialFallback && AdManager.showInterstitialIfReady(this)) {
-                    Toast.makeText(
-                        this,
-                        "تم عرض إعلان عادي. هذه الزخرفة لا تُفتح إلا بإعلان مكافأة؛ عُد لاحقاً.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    Toast.makeText(this, "لا يوجد إعلان متاح الآن. ارجع لاحقاً للمحاولة.", Toast.LENGTH_LONG).show()
-                }
-                AdManager.loadRewarded(this)
-                AdManager.loadInterstitial(this)
-            }
-        })
+        val status = TextView(this).apply {
+            text = "جارٍ التحقق من إعلان مكافأة متاح…"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(theme.toolbarTextColor)
+            setPadding(0, 0, 0, dp(10))
+        }
+        val adButton = choice("جارٍ تحميل الإعلان…", false, prominent = true) {}
+        val shareButton = choice("شارك عبر واتساب وافتح الميزة", false) {}
+        shareButton.visibility = View.GONE
+        screen.addView(status)
+        screen.addView(adButton)
+        screen.addView(shareButton)
         setContentView(screen)
+
+        fun setAdButtonEnabled(label: String, enabled: Boolean, action: () -> Unit) {
+            adButton.text = label
+            adButton.isEnabled = enabled
+            adButton.alpha = if (enabled) 1f else 0.62f
+            adButton.setOnClickListener { if (adButton.isEnabled) action() }
+        }
+
+        fun grantReward() {
+            onReward()
+            finish()
+        }
+
+        lateinit var requestReward: (Int) -> Unit
+        fun showShareFallback() {
+            status.text = "تعذر تحميل الإعلان مرتين. لا يؤثر ذلك على استعمال الكيبورد."
+            setAdButtonEnabled("↻  إعادة محاولة الإعلان", true) { requestReward(1) }
+            shareButton.visibility = View.VISIBLE
+            shareButton.setOnClickListener {
+                sharePremiumUnlock {
+                    grantReward()
+                }
+            }
+        }
+
+        requestReward = { attempt ->
+            rewardRetry?.let { rewardHandler.removeCallbacks(it) }
+            rewardRetry = null
+            rewardRequestCancel?.invoke()
+            status.text = if (attempt == 1) {
+                "جارٍ التحقق من إعلان مكافأة متاح…"
+            } else {
+                "لم يتوفر إعلان، نحاول مرة أخيرة…"
+            }
+            shareButton.visibility = View.GONE
+            setAdButtonEnabled("جارٍ تحميل الإعلان…", false) {}
+            rewardRequestCancel = AdManager.requestRewarded(this) { available ->
+                rewardRequestCancel = null
+                if (isFinishing || isDestroyed) return@requestRewarded
+                if (available) {
+                    status.text = "الإعلان جاهز. شاهد الإعلان لفتح الميزة بشكل دائم."
+                    setAdButtonEnabled(button, true) {
+                        val shown = AdManager.showRewarded(this) { grantReward() }
+                        if (!shown) requestReward(1)
+                    }
+                } else if (attempt == 1) {
+                    val retry = Runnable { requestReward(2) }
+                    rewardRetry = retry
+                    rewardHandler.postDelayed(retry, 800)
+                } else {
+                    showShareFallback()
+                }
+            }
+        }
+
+        requestReward(1)
     }
 
     override fun onResume() {
@@ -664,11 +717,36 @@ class SettingsActivity : ComponentActivity() {
     private fun addStoreSection() {
         content.addView(section("حول التطبيق"))
         content.addView(choice("مشاركة كيبورد مزخرف", false) { shareApp() })
-        content.addView(text("الإصدار 5.5  •  زخرفة محفوظة  •  حافظة ذكية  •  حماية حقول كلمات المرور"))
+        content.addView(text("الإصدار ${appVersionName()}  •  زخرفة محفوظة  •  حافظة ذكية  •  حماية حقول كلمات المرور"))
     }
 
+    private fun appVersionName(): String = runCatching {
+        packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+    }.getOrDefault("5.8")
+
     private fun shareApp() {
-        val intent = Intent(Intent.ACTION_SEND).apply {
+        startActivity(Intent.createChooser(shareIntent(), "مشاركة التطبيق"))
+    }
+
+    private fun sharePremiumUnlock(onShared: () -> Unit) {
+        val sendIntent = shareIntent()
+        val whatsappIntent = Intent(sendIntent).setPackage("com.whatsapp")
+        val targetIntent = if (packageManager.resolveActivity(whatsappIntent, 0) != null) {
+            whatsappIntent
+        } else {
+            Intent.createChooser(sendIntent, "مشاركة التطبيق")
+        }
+        val opened = runCatching { startActivity(targetIntent) }.isSuccess
+        if (!opened) {
+            Toast.makeText(this, "تعذر فتح المشاركة الآن. جرّب الإعلان لاحقاً.", Toast.LENGTH_LONG).show()
+            return
+        }
+        onShared()
+        Toast.makeText(this, "تم فتح الميزة. شكرًا لمشاركة التطبيق!", Toast.LENGTH_LONG).show()
+    }
+
+    private fun shareIntent(): Intent {
+        return Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_SUBJECT, "كيبورد مزخرف")
             putExtra(
@@ -676,7 +754,6 @@ class SettingsActivity : ComponentActivity() {
                 "جرّب كيبورد مزخرف للكتابة العربية المزخرفة، اقتراحات زخرفة، رموز، إيموجي، وحركات عربية:\n$PLAY_URL"
             )
         }
-        startActivity(Intent.createChooser(intent, "مشاركة التطبيق"))
     }
 
     private fun addPreview() {

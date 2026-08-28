@@ -27,9 +27,12 @@ object AdManager {
 
     private var interstitial: InterstitialAd? = null
     private var rewardedAd: RewardedAd? = null
+    private var rewardedLoading = false
+    private var rewardedReloadScheduled = false
     private var lastInterstitialShowTime = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
     private var playServicesAvailable = true
+    private val rewardedAvailabilityCallbacks = mutableListOf<(Boolean) -> Unit>()
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences("ad_state", Context.MODE_PRIVATE)
@@ -121,41 +124,99 @@ object AdManager {
 
     // ─── Rewarded ───────────────────────────────────────────────
 
+    /** Starts a background preload; callers that need an answer should use [requestRewarded]. */
     fun loadRewarded(context: Context) {
-        if (!playServicesAvailable) return
+        loadRewardedInternal(context)
+    }
+
+    /**
+     * Reports whether a rewarded ad can be shown now. The returned callback cancels
+     * delivery, so an Activity that is closing never receives a stale result.
+     */
+    fun requestRewarded(context: Context, onAvailability: (Boolean) -> Unit): () -> Unit {
+        var active = true
+        val guardedCallback: (Boolean) -> Unit = { available ->
+            if (active) onAvailability(available)
+        }
+        if (rewardedAd != null) {
+            mainHandler.post { guardedCallback(true) }
+        } else if (!playServicesAvailable) {
+            mainHandler.post { guardedCallback(false) }
+        } else {
+            rewardedAvailabilityCallbacks += guardedCallback
+            loadRewardedInternal(context)
+        }
+        return {
+            active = false
+            rewardedAvailabilityCallbacks.remove(guardedCallback)
+        }
+    }
+
+    private fun loadRewardedInternal(context: Context) {
+        if (!playServicesAvailable || rewardedAd != null || rewardedLoading) return
+        rewardedLoading = true
         val appContext = context.applicationContext
         try {
             RewardedAd.load(appContext, REWARDED_UNIT_ID, AdRequest.Builder().build(),
                 object : RewardedAdLoadCallback() {
                     override fun onAdLoaded(ad: RewardedAd) {
+                        rewardedLoading = false
                         rewardedAd = ad
                         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                             override fun onAdDismissedFullScreenContent() {
                                 rewardedAd = null
-                                loadRewarded(appContext)
+                                loadRewardedInternal(appContext)
+                            }
+
+                            override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                                rewardedAd = null
+                                loadRewardedInternal(appContext)
                             }
                         }
+                        notifyRewardedAvailability(true)
                     }
                     override fun onAdFailedToLoad(error: LoadAdError) {
+                        rewardedLoading = false
                         rewardedAd = null
-                        mainHandler.postDelayed({ loadRewarded(appContext) }, 30_000)
+                        notifyRewardedAvailability(false)
+                        scheduleRewardedReload(appContext)
                     }
                 })
         } catch (_: Exception) {
-            mainHandler.postDelayed({ loadRewarded(appContext) }, 30_000)
+            rewardedLoading = false
+            rewardedAd = null
+            notifyRewardedAvailability(false)
+            scheduleRewardedReload(appContext)
         }
+    }
+
+    private fun notifyRewardedAvailability(available: Boolean) {
+        val callbacks = rewardedAvailabilityCallbacks.toList()
+        rewardedAvailabilityCallbacks.clear()
+        callbacks.forEach { callback -> mainHandler.post { callback(available) } }
+    }
+
+    private fun scheduleRewardedReload(context: Context) {
+        if (!playServicesAvailable || rewardedReloadScheduled) return
+        rewardedReloadScheduled = true
+        mainHandler.postDelayed({
+            rewardedReloadScheduled = false
+            loadRewardedInternal(context)
+        }, 30_000)
     }
 
     fun showRewarded(activity: Activity, onReward: () -> Unit): Boolean {
         try {
             if (activity.isFinishing || activity.isDestroyed) return false
             val ad = rewardedAd ?: return false
+            rewardedAd = null
             ad.show(activity, object : com.google.android.gms.ads.OnUserEarnedRewardListener {
                 override fun onUserEarnedReward(rewardItem: RewardItem) { onReward() }
             })
             return true
         } catch (_: Exception) {
             rewardedAd = null
+            loadRewarded(activity.applicationContext)
             return false
         }
     }
