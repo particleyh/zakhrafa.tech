@@ -43,7 +43,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
         val labelScale: Int = 100,
         val wideSpacebar: Boolean = true,
         val backgroundUri: String = "",
-        val defaultLanguage: String = "ar"
+        val defaultLanguage: String = "ar",
+        val showStyleSuggestions: Boolean = true
     )
 
     var mode = LayoutMode.ARABIC
@@ -789,7 +790,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
             labelScale = settings.labelScale,
             wideSpacebar = settings.wideSpacebar,
             backgroundUri = settings.backgroundUri,
-            defaultLanguage = settings.defaultLanguage
+            defaultLanguage = settings.defaultLanguage,
+            showStyleSuggestions = settings.showStyleSuggestions
         )
         if (applyDefaultLanguage) {
             mode = if (keyboardPrefs.defaultLanguage == "en") LayoutMode.ENGLISH else LayoutMode.ARABIC
