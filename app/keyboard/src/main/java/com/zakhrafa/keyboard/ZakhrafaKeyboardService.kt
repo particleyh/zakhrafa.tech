@@ -708,12 +708,12 @@ class ZakhrafaKeyboardService : InputMethodService() {
             })
         })
 
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val latestClipboard = clipboardManager.latestText()
         val history = clipboardManager.getHistory().filterNot { it == latestClipboard }
 
         latestClipboard?.let { latest ->
-            list.addView(renderer.sheetItem("📌  آخر نسخة: ${clipboardManager.preview(latest, 34)}") {
+            grid.addView(renderer.sheetItem("📌  آخر نسخة: ${clipboardManager.preview(latest, 34)}") {
                 val text = clipboardManager.latestText()
                 if (text != null) {
                 clipboardManager.pasteFromHistory(text)
@@ -723,34 +723,36 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
 
         if (history.isNotEmpty()) {
-            list.addView(renderer.sheetItem("🗑  مسح السجل") {
+            grid.addView(renderer.sheetItem("🗑  مسح السجل") {
                 clipboardManager.clearHistory()
                 openClipboard()
             })
-            history.take(30).forEach { entry ->
-                list.addView(LinearLayout(this).apply {
+            history.take(30).chunked(2).forEach { pair ->
+                val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutDirection = View.LAYOUT_DIRECTION_LTR
-                    val pasteItem = renderer.sheetItem(clipboardManager.preview(entry)) {}.apply {
+                }
+                pair.forEach { entry ->
+                    val cell = renderer.sheetItem(clipboardManager.preview(entry, 20)) {
+                        tapFeedback(this)
+                        clipboardManager.pasteFromHistory(entry)
+                        rebuildKeyboard()
+                    }.apply {
                         layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                            setMargins(0, dp(2), dp(3), dp(2))
+                            setMargins(dp(2), dp(2), dp(2), dp(2))
                         }
                     }
-                    addView(pasteItem.apply {
-                        setOnClickListener {
-                            tapFeedback(this)
-                            clipboardManager.pasteFromHistory(entry)
-                            rebuildKeyboard()
-                        }
+                    row.addView(cell)
+                }
+                if (pair.size == 1) {
+                    row.addView(android.view.View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
                     })
-                    addView(renderer.controlButton("×", widthDp = 44) {
-                        clipboardManager.removeEntry(entry)
-                        openClipboard()
-                    })
-                })
+                }
+                grid.addView(row)
             }
         } else if (latestClipboard == null) {
-            list.addView(TextView(this).apply {
+            grid.addView(TextView(this).apply {
                 text = "لا يوجد نسخ محفوظة"
                 textSize = 14f
                 setTextColor(currentTheme.toolbarTextColor)
@@ -760,7 +762,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
 
         val scrollView = android.widget.ScrollView(this).apply {
-            addView(list)
+            addView(grid)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 minOf(dp(310), (resources.displayMetrics.heightPixels * 0.42f).toInt())
