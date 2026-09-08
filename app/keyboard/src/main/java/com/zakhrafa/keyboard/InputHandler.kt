@@ -83,7 +83,7 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
             svc.clearSuggestions()
             return
         }
-        val fallbackLength = svc.currentOutputLengths.lastOrNull() ?: 1
+        val fallbackLength = utf16CharLengthBefore(svc.currentInputConnection)
         val deleted = runCatching {
             session.delete(svc.currentInputConnection, fallbackLength)
         }.getOrDefault(false)
@@ -95,6 +95,14 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
         svc.currentWord = session.currentWord
         svc.currentCommittedLength = session.currentWord.length
         svc.scheduleSuggestions()
+    }
+
+    private fun utf16CharLengthBefore(connection: android.view.inputmethod.InputConnection?): Int {
+        if (connection == null) return 2
+        val text = runCatching { connection.getTextBeforeCursor(2, 0) }.getOrNull()
+        if (text.isNullOrEmpty()) return 2
+        val last = text.length - 1
+        return if (last > 0 && Character.isHighSurrogate(text[last - 1]) && Character.isLowSurrogate(text[last])) 2 else 1
     }
 
     fun enter() {
