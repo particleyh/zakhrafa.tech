@@ -76,6 +76,7 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                 attachSpacebarGesture(this)
             } else {
                 setOnClickListener {
+                    if (activeVariantPopup != null) return@setOnClickListener
                     svc.tapFeedback(this)
                     key.action?.invoke() ?: svc.commitKey(key.output)
                 }
@@ -118,16 +119,17 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                             dismissKeyPreview()
                             val active = activeVariantPopup ?: return@setOnTouchListener false
                             val selected = choiceAt(active, event.rawX, event.rawY)
-                            active.window.dismiss()
-                            activeVariantPopup = null
-                            if (selected != null) svc.commitKey(selected)
-                            // A long press must never also emit the base key.
+                            if (selected != null) {
+                                active.window.dismiss()
+                                activeVariantPopup = null
+                                svc.commitKey(selected)
+                            }
+                            // Finger lifted off variants — leave popup open (sticky).
                             true
                         }
                         MotionEvent.ACTION_CANCEL -> {
                             dismissKeyPreview()
-                            activeVariantPopup?.window?.dismiss()
-                            activeVariantPopup = null
+                            // Keep activeVariantPopup alive so the user can still tap a variant.
                             false
                         }
                         else -> false
@@ -356,7 +358,7 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
             content,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-            false
+            true
         ).apply {
             isTouchable = true
             isOutsideTouchable = true
