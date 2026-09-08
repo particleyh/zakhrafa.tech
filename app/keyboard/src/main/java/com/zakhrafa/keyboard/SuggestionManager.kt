@@ -38,6 +38,13 @@ internal class SuggestionManager(
     fun updateSuggestions(suggestionStrip: LinearLayout) {
         suggestionStrip.removeAllViews()
 
+        if (!svc.keyboardPrefs.showStyleSuggestions) {
+            svc.idleControls.visibility = View.VISIBLE
+            svc.suggestionsScroll.visibility = View.GONE
+            stopEditorWatch()
+            return
+        }
+
         // A newly copied link has temporary priority over decoration predictions.
         // It stays in this same rail until the user pastes or dismisses it.
         val pendingLink = if (svc.supportsSuggestions()) {
@@ -85,7 +92,7 @@ internal class SuggestionManager(
     }
 
     fun scheduleSuggestions() {
-        if (closed) return
+        if (closed || !svc.keyboardPrefs.showStyleSuggestions) return
         pendingRunnable?.let { handler.removeCallbacks(it) }
         val generation = ++requestGeneration
         pendingRunnable = Runnable {

@@ -706,6 +706,11 @@ class SettingsActivity : ComponentActivity() {
             selected = prefs.getBoolean("reduce_motion", false),
             onClick = { updateBoolean("reduce_motion", !prefs.getBoolean("reduce_motion", false)) }
         ))
+        content.addView(choice(
+            value = "شريط الاقتراحات",
+            selected = prefs.getBoolean("show_style_suggestions", true),
+            onClick = { updateBoolean("show_style_suggestions", !prefs.getBoolean("show_style_suggestions", true)) }
+        ))
     }
 
     private fun addLanguageSection() {
