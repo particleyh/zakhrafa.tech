@@ -14,8 +14,7 @@ internal fun shouldInsertNewlineForEditor(inputType: Int, imeOptions: Int): Bool
     val actionDisabled = imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0
     return actionDisabled || (multiline && action in setOf(
         EditorInfo.IME_ACTION_NONE,
-        EditorInfo.IME_ACTION_UNSPECIFIED,
-        EditorInfo.IME_ACTION_SEARCH
+        EditorInfo.IME_ACTION_UNSPECIFIED
     ))
 }
 
