@@ -26,8 +26,8 @@ internal class EmojiPicker(
     fun showEmojiPicker() {
         svc.keyboardContainer.removeAllViews()
         categoryButtons.clear()
-        emojiCellSizePx = ((svc.resources.displayMetrics.widthPixels - svc.dp(8)) / 8)
-            .coerceIn(svc.dp(32), svc.dp(48))
+        emojiCellSizePx = ((svc.resources.displayMetrics.widthPixels - svc.dp(8)) / 7)
+            .coerceIn(svc.dp(40), svc.dp(56))
 
         val root = LinearLayout(svc).apply {
             orientation = LinearLayout.VERTICAL
@@ -252,7 +252,7 @@ internal class EmojiPicker(
         emojis.forEach { emoji ->
             val btn = TextView(svc).apply {
                 text = emoji
-                textSize = 22f
+                textSize = 26f
                 gravity = Gravity.CENTER
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = size
