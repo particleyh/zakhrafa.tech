@@ -83,6 +83,14 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
             svc.clearSuggestions()
             return
         }
+        // Direct selection query: some editors don't fire onUpdateSelection reliably.
+        val selected = runCatching { svc.currentInputConnection?.getSelectedText(0) }.getOrNull()
+        if (!selected.isNullOrEmpty()) {
+            runCatching { svc.currentInputConnection?.commitText("", 1) }
+            resetCurrentWord()
+            svc.clearSuggestions()
+            return
+        }
         val fallbackLength = utf16CharLengthBefore(svc.currentInputConnection)
         val deleted = runCatching {
             session.delete(svc.currentInputConnection, fallbackLength)
