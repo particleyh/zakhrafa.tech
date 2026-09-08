@@ -33,7 +33,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun arabicRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow) rows.add(numberRow())
+        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow())
         rows.add(ARABIC_TOP_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(ARABIC_HOME_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(listOf(
@@ -70,7 +70,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun englishRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow) rows.add(numberRow())
+        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow())
         fun letters(value: String) = if (svc.englishShifted) value.uppercase() else value
         rows.add(letters("qwertyuiop").map { KeySpec(it.toString()) })
         rows.add(listOf(
