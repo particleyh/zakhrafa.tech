@@ -29,11 +29,21 @@ jobs:
       - name: Build AAB
         run: cd app && ./gradlew :keyboard:bundleRelease
 
+      - name: Build APK
+        run: cd app && ./gradlew :keyboard:assembleRelease
+
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: zakhrafa-keyboard-aab
           path: app/keyboard/build/outputs/bundle/release/*.aab
+          retention-days: 5
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zakhrafa-keyboard-apk
+          path: app/keyboard/build/outputs/apk/release/*.apk
           retention-days: 5
 
       - name: Create Release
@@ -42,5 +52,7 @@ jobs:
         with:
           tag_name: keyboard-v5.9
           name: Zakhrafa Keyboard 5.9
-          files: app/keyboard/build/outputs/bundle/release/*.aab
+          files: |
+            app/keyboard/build/outputs/bundle/release/*.aab
+            app/keyboard/build/outputs/apk/release/*.apk
           generate_release_notes: true
