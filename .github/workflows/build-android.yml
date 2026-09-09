@@ -26,6 +26,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x app/gradlew
 
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release/zakhrafa-upload-key.jks
+
       - name: Build AAB
         run: cd app && ./gradlew :keyboard:bundleRelease
         env:
