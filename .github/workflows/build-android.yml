@@ -24,7 +24,7 @@ jobs:
         run: chmod +x app/gradlew
 
       - name: Build AAB
-        run: ./app/gradlew :app:keyboard:bundleRelease
+        run: cd app && ./gradlew :keyboard:bundleRelease
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
