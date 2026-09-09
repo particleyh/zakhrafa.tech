@@ -734,7 +734,6 @@ class ZakhrafaKeyboardService : InputMethodService() {
                 }
                 pair.forEach { entry ->
                     val cell = renderer.sheetItem(clipboardManager.preview(entry, 20)) {
-                        tapFeedback(this)
                         clipboardManager.pasteFromHistory(entry)
                         rebuildKeyboard()
                     }.apply {
@@ -742,6 +741,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
                             setMargins(dp(2), dp(2), dp(2), dp(2))
                         }
                     }
+                    tapFeedback(cell)
                     row.addView(cell)
                 }
                 if (pair.size == 1) {
