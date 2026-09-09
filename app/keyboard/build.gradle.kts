@@ -22,13 +22,10 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = rootProject.file("release/zakhrafa-upload-key.jks")
-            if (keystorePath.exists()) {
-                storeFile = keystorePath
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "ZakhrafaUpload2026!"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "zakhrafa_upload"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "ZakhrafaUpload2026!"
-            }
+            storeFile = file("${rootProject.projectDir}/release/zakhrafa-upload-key.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "ZakhrafaUpload2026!"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "zakhrafa_upload"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "ZakhrafaUpload2026!"
         }
     }
 
@@ -37,10 +34,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            val keystorePath = rootProject.file("release/zakhrafa-upload-key.jks")
-            if (keystorePath.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
