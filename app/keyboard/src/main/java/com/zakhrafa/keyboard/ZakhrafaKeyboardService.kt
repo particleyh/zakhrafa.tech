@@ -745,7 +745,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
                     row.addView(cell)
                 }
                 if (pair.size == 1) {
-                    row.addView(android.view.View(this).apply {
+                    row.addView(android.view.View(this@ZakhrafaKeyboardService).apply {
                         layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
                     })
                 }
