@@ -73,6 +73,12 @@
   </url>
   <url>
     <loc>https://zakhrafa.tech/articles/chatdardsha/</loc>
+  <url>
+    <loc>https://zakhrafa.tech/articles/al3ab-games/</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
     <lastmod>2026-08-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
