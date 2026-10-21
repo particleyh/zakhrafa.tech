@@ -12,8 +12,8 @@ android {
         applicationId = "com.zakhrafa.tech"
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.8.3"
+        versionCode = 19
+        versionName = "1.8.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,10 +22,19 @@ android {
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("release/zakhrafa-upload-key.jks")
+            storePassword = providers.environmentVariable("STORE_PASSWORD").orNull
+            keyAlias = providers.environmentVariable("KEY_ALIAS").orElse("zakhrafa_upload").get()
+            keyPassword = providers.environmentVariable("KEY_PASSWORD").orNull
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -61,6 +70,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.play.review)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

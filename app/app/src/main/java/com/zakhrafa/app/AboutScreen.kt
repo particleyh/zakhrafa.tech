@@ -61,6 +61,26 @@ internal fun AboutScreen() {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
+            InfoCard(title = "قيّم التطبيق") {
+                Text(
+                    "شارك رأيك الصادق على Google Play وساعد الآخرين على التعرّف على التطبيق.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(onClick = { rateApp(context) }, modifier = Modifier.weight(1f)) {
+                        Text("قيّمنا على Google Play")
+                    }
+                    OutlinedButton(onClick = { shareApp(context) }, modifier = Modifier.weight(1f)) {
+                        Text("شاركه")
+                    }
+                }
+            }
+        }
+
+        item {
             InfoCard(title = "خصوصيتك") {
                 Text(
                     "كل الزخرفة تتم على جهازك، بلا حساب أو تتبع أو إرسال لما تكتبه.",
@@ -88,22 +108,6 @@ internal fun AboutScreen() {
                 )
                 OutlinedButton(onClick = { showDataResetDialog = true }) {
                     Text("مسح بياناتي", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
-
-        item {
-            InfoCard(title = "أعجبك التطبيق؟") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(onClick = { rateApp(context) }, modifier = Modifier.weight(1f)) {
-                        Text("قيّم التطبيق")
-                    }
-                    OutlinedButton(onClick = { shareApp(context) }, modifier = Modifier.weight(1f)) {
-                        Text("شاركه")
-                    }
                 }
             }
         }

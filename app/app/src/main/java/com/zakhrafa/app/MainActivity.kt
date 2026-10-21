@@ -3,9 +3,13 @@ package com.zakhrafa.app
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
+import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -58,6 +62,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.google.android.play.core.review.ReviewManagerFactory
 
 internal const val DECORATOR_PACKAGE_ID = "com.zakhrafa.tech"
 internal const val DECORATOR_PLAY_URL = "https://play.google.com/store/apps/details?id=$DECORATOR_PACKAGE_ID"
@@ -67,6 +72,10 @@ internal const val TERMS_URL = "https://zakhrafa.tech/terms.html"
 internal const val WEBSITE_URL = "https://zakhrafa.tech"
 internal const val MAX_INPUT_LENGTH = 60
 private val copyHistoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+private const val REVIEW_PREFS = "play_review_prompt"
+private const val REVIEW_COPY_COUNT = "successful_copy_count"
+private const val REVIEW_FLOW_ATTEMPTED = "flow_attempted"
+private const val REVIEW_COPY_THRESHOLD = 2
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF006B5B),
@@ -221,6 +230,39 @@ internal fun copyToClipboard(context: Context, text: String) {
         CopyHistoryManager.recordCopy(context.applicationContext, text)
     }
     Toast.makeText(context, "تم النسخ ✓", Toast.LENGTH_SHORT).show()
+    maybeRequestInAppReview(context)
+}
+
+private fun maybeRequestInAppReview(context: Context) {
+    val activity = context.findActivity() ?: return
+    if (activity.isFinishing || activity.isDestroyed) return
+
+    val prefs = context.applicationContext.getSharedPreferences(REVIEW_PREFS, Context.MODE_PRIVATE)
+    if (prefs.getBoolean(REVIEW_FLOW_ATTEMPTED, false)) return
+
+    val copyCount = prefs.getInt(REVIEW_COPY_COUNT, 0) + 1
+    prefs.edit().putInt(REVIEW_COPY_COUNT, copyCount).apply()
+    if (copyCount < REVIEW_COPY_THRESHOLD) return
+
+    // A single, delayed attempt follows repeated use of the app's main feature.
+    prefs.edit().putBoolean(REVIEW_FLOW_ATTEMPTED, true).apply()
+    Handler(Looper.getMainLooper()).postDelayed({
+        if (activity.isFinishing || activity.isDestroyed) return@postDelayed
+        runCatching {
+            val manager = ReviewManagerFactory.create(activity)
+            manager.requestReviewFlow().addOnCompleteListener { request ->
+                if (request.isSuccessful && !activity.isFinishing && !activity.isDestroyed) {
+                    manager.launchReviewFlow(activity, request.result)
+                }
+            }
+        }
+    }, 1_800L)
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 internal fun readClipboard(context: Context): String? {
