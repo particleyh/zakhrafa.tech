@@ -36,7 +36,7 @@ import com.zakhrafa.engine.models.DecorationResult
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun FavoritesScreen() {
+internal fun FavoritesScreen(onSuccessfulCopy: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val favorites by FavoritesManager.getFavorites(context).collectAsState(initial = emptySet())
@@ -172,6 +172,7 @@ internal fun FavoritesScreen() {
                         selectedLibrary
                     ),
                     isFavorite = text in favorites,
+                    onCopied = onSuccessfulCopy,
                     onFavorite = {
                         scope.launch { FavoritesManager.toggleFavorite(context, text) }
                     }

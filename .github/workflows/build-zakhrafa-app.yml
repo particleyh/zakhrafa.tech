@@ -44,16 +44,16 @@ jobs:
 
       - name: Prepare direct download files
         run: |
-          cp app/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Zakhrafa-1.8.4.apk"
-          cp app/app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/Zakhrafa-1.8.4.aab"
+          cp app/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Zakhrafa-1.8.5.apk"
+          cp app/app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/Zakhrafa-1.8.5.aab"
 
       - name: Publish direct APK and AAB downloads
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: zakhrafa-app-v1.8.4-${{ github.run_number }}
-          name: Zakhrafa App 1.8.4 (Build ${{ github.run_number }})
+          tag_name: zakhrafa-app-v1.8.5-${{ github.run_number }}
+          name: Zakhrafa App 1.8.5 (Build ${{ github.run_number }})
           make_latest: false
           generate_release_notes: false
           files: |
-            ${{ runner.temp }}/Zakhrafa-1.8.4.apk
-            ${{ runner.temp }}/Zakhrafa-1.8.4.aab
+            ${{ runner.temp }}/Zakhrafa-1.8.5.apk
+            ${{ runner.temp }}/Zakhrafa-1.8.5.aab

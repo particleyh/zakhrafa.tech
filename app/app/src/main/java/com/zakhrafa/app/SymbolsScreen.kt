@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.zakhrafa.engine.styles.Symbols
 
 @Composable
-internal fun SymbolsScreen() {
+internal fun SymbolsScreen(onSuccessfulCopy: () -> Unit) {
     val context = LocalContext.current
     val categoryNames = Symbols.categories.keys.toList()
     var selectedCategory by rememberSaveable { mutableStateOf(categoryNames.firstOrNull().orEmpty()) }
@@ -69,7 +69,7 @@ internal fun SymbolsScreen() {
 
         itemsIndexed(symbols, key = { index, symbol -> "$selectedCategory:$index:$symbol" }) { _, symbol ->
             Surface(
-                onClick = { copyToClipboard(context, symbol) },
+                onClick = { copyToClipboard(context, symbol, onSuccessfulCopy) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),

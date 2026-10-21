@@ -12,8 +12,8 @@ android {
         applicationId = "com.zakhrafa.tech"
         minSdk = 24
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.8.4"
+        versionCode = 20
+        versionName = "1.8.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -70,7 +70,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.play.review)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -71,7 +71,7 @@ private val categories = listOf(
 )
 
 @Composable
-internal fun DecoratorScreen() {
+internal fun DecoratorScreen(onSuccessfulCopy: () -> Unit) {
     var text by rememberSaveable { mutableStateOf("زخرفة") }
     var filter by rememberSaveable { mutableStateOf("all") }
     val context = LocalContext.current
@@ -98,7 +98,7 @@ internal fun DecoratorScreen() {
                     readClipboard(context)?.let { text = limitInput(it) }
                         ?: Toast.makeText(context, "الحافظة فارغة", Toast.LENGTH_SHORT).show()
                 },
-                onRandomCopy = { results.randomOrNull()?.let { copyToClipboard(context, it.text) } }
+                onRandomCopy = { results.randomOrNull()?.let { copyToClipboard(context, it.text, onSuccessfulCopy) } }
             )
         }
 
@@ -142,6 +142,7 @@ internal fun DecoratorScreen() {
                 ResultCard(
                     result = result,
                     isFavorite = result.text in favorites,
+                    onCopied = onSuccessfulCopy,
                     onFavorite = {
                         scope.launch { FavoritesManager.toggleFavorite(context, result.text) }
                     }
@@ -245,6 +246,7 @@ private fun ResultsSummary(label: String, count: Int, onShare: () -> Unit) {
 internal fun ResultCard(
     result: DecorationResult,
     isFavorite: Boolean,
+    onCopied: () -> Unit,
     onFavorite: () -> Unit
 ) {
     val context = LocalContext.current
@@ -256,7 +258,7 @@ internal fun ResultCard(
     ) {
         Column(
             modifier = Modifier
-                .clickable { copyToClipboard(context, result.text) }
+                .clickable { copyToClipboard(context, result.text, onCopied) }
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -298,7 +300,7 @@ internal fun ResultCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { copyToClipboard(context, result.text) },
+                    onClick = { copyToClipboard(context, result.text, onCopied) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp)
                 ) {
