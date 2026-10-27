@@ -8,8 +8,8 @@ import org.junit.Test
 
 class EditorActionTest {
     @Test
-    fun multilineSearchFieldInsertsNewline() {
-        assertTrue(shouldInsertNewlineForEditor(
+    fun multilineSearchFieldKeepsSearchAction() {
+        assertFalse(shouldInsertNewlineForEditor(
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
             EditorInfo.IME_ACTION_SEARCH
         ))
