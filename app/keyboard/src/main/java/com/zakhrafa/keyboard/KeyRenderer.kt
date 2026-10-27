@@ -24,6 +24,8 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
 
     private var activeVariantPopup: VariantPopup? = null
     private var activeKeyPreview: PopupWindow? = null
+    private var sharedPreviewWindow: PopupWindow? = null
+    private var sharedPreviewLabel: TextView? = null
 
     fun keyView(key: KeyboardLayouts.KeySpec): View {
         return FrameLayout(svc).apply {
@@ -182,17 +184,21 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
     private fun showKeyPreview(anchor: View, label: String) {
         if (!anchor.isAttachedToWindow) return
         dismissKeyPreview()
-        val bubble = TextView(svc).apply {
-            text = label
-            textSize = if (label.length > 1) 22f else 30f
+        val bubble = sharedPreviewLabel ?: TextView(svc).apply {
+            textSize = 30f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             includeFontPadding = false
             setTextColor(svc.currentTheme.keyTextColor)
             background = circular(svc.currentTheme.keyBackground, svc.currentTheme.primaryColor)
             layoutParams = ViewGroup.LayoutParams(svc.dp(64), svc.dp(64))
+            sharedPreviewLabel = this
         }
-        val preview = PopupWindow(
+        bubble.text = label
+        bubble.textSize = if (label.length > 1) 22f else 30f
+        bubble.setTextColor(svc.currentTheme.keyTextColor)
+        bubble.background = circular(svc.currentTheme.keyBackground, svc.currentTheme.primaryColor)
+        val preview = sharedPreviewWindow ?: PopupWindow(
             bubble,
             svc.dp(64),
             svc.dp(64),
@@ -203,9 +209,10 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
             inputMethodMode = PopupWindow.INPUT_METHOD_NOT_NEEDED
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             elevation = svc.dp(10).toFloat()
-        }
-        preview.setOnDismissListener {
-            if (activeKeyPreview === preview) activeKeyPreview = null
+            setOnDismissListener {
+                if (activeKeyPreview === this) activeKeyPreview = null
+            }
+            sharedPreviewWindow = this
         }
         activeKeyPreview = preview
         try {

@@ -198,12 +198,14 @@ class ZakhrafaKeyboardService : InputMethodService() {
         updateSuggestions()
         val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
         val pickerRequestedAt = prefs.getLong("open_style_picker_requested_at", 0L)
-        // Remove both the v52 boolean and the v53 timestamp synchronously. A delayed
-        // SharedPreferences apply could otherwise reopen the picker in another app.
-        prefs.edit()
+        // Remove both the v52 boolean and the v53 timestamp. Values are already
+        // read above; keep the durable commit (apply could let a rapid second
+        // show re-read the flag) but run it off the main thread — a blocking
+        // commit here contributed to window-show ANRs.
+        val clearPickerRequest = prefs.edit()
             .remove("open_style_picker_once")
             .remove("open_style_picker_requested_at")
-            .commit()
+        Thread { runCatching { clearPickerRequest.commit() } }.start()
         val requestIsFresh = pickerRequestedAt > 0L &&
             System.currentTimeMillis() - pickerRequestedAt in 0L..120_000L
         val requestCameFromOurSetupField = currentInputEditorInfo?.packageName == packageName

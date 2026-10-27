@@ -26,6 +26,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x app/gradlew
 
+      - name: Run keyboard unit tests
+        run: cd app && ./gradlew :keyboard:test
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release/zakhrafa-upload-key.jks
 

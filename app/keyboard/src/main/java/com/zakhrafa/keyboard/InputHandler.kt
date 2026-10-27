@@ -1,9 +1,7 @@
 package com.zakhrafa.keyboard
 
-import android.os.Build
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import com.zakhrafa.keyboard.core.InputSession
 import com.zakhrafa.keyboard.core.KeyboardMode
@@ -20,11 +18,6 @@ internal fun shouldInsertNewlineForEditor(inputType: Int, imeOptions: Int): Bool
 
 internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     private val session = InputSession()
-    private val snapshotRequest = ExtractedTextRequest().apply {
-        token = 5301
-        hintMaxChars = 2048
-        hintMaxLines = 10
-    }
     private var selectionStart = -1
     private var selectionEnd = -1
 
@@ -83,17 +76,11 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
             svc.clearSuggestions()
             return
         }
-        // Direct selection query: some editors don't fire onUpdateSelection reliably.
-        val selected = runCatching { svc.currentInputConnection?.getSelectedText(0) }.getOrNull()
-        if (!selected.isNullOrEmpty()) {
-            runCatching { svc.currentInputConnection?.commitText("", 1) }
-            resetCurrentWord()
-            svc.clearSuggestions()
-            return
-        }
-        val fallbackLength = utf16CharLengthBefore(svc.currentInputConnection)
+        // session.delete already probes getSelectedText (covers editors that don't
+        // fire onUpdateSelection), so no extra probe is needed here. The UTF-16
+        // fallback length is only read when the session has no tracked token.
         val deleted = runCatching {
-            session.delete(svc.currentInputConnection, fallbackLength)
+            session.delete(svc.currentInputConnection) { utf16CharLengthBefore(svc.currentInputConnection) }
         }.getOrDefault(false)
         if (!deleted) {
             resetCurrentWord()
@@ -170,26 +157,10 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     fun clearIfEditorWasCleared() {
         if (svc.currentWord.isBlank()) return
         val connection = svc.currentInputConnection ?: return
-        val extractedText = runCatching {
-            connection.getExtractedText(snapshotRequest, 0)?.text
-        }.getOrNull()
-        if (extractedText != null && extractedText.all(::isVisuallyEmptyCharacter)) {
-            resetCurrentWord()
-            svc.clearSuggestions()
-            return
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val surroundingText = runCatching {
-                connection.getSurroundingText(256, 256, 0)?.text
-            }.getOrNull()
-            if (surroundingText != null && surroundingText.all(::isVisuallyEmptyCharacter)) {
-                resetCurrentWord()
-                svc.clearSuggestions()
-                return
-            }
-        }
-        val beforeCursor = runCatching { connection.getTextBeforeCursor(256, 0)?.toString() }.getOrNull()
-        val afterCursor = runCatching { connection.getTextAfterCursor(256, 0)?.toString() }.getOrNull()
+        // Two bounded IPCs only: extracted-text and surrounding-text paths were
+        // redundant with the monitored push updates and the before/after pair.
+        val beforeCursor = runCatching { connection.getTextBeforeCursor(128, 0)?.toString() }.getOrNull()
+        val afterCursor = runCatching { connection.getTextAfterCursor(128, 0)?.toString() }.getOrNull()
         if (beforeCursor == null && afterCursor == null) return
         val visibleText = beforeCursor.orEmpty() + afterCursor.orEmpty()
         if (visibleText.all(::isVisuallyEmptyCharacter)) {
@@ -211,11 +182,12 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
     fun onEditorSelectionChanged(selectionStart: Int, selectionEnd: Int) {
         this.selectionStart = selectionStart
         this.selectionEnd = selectionEnd
+        // Do not probe the editor here: onUpdateSelection fires on every cursor
+        // move, and the old 4-IPC clear check on that path caused ANRs. Cleared
+        // composers are caught by the monitored text push and the 450ms poll.
         if (svc.currentWord.isNotBlank() && selectionStart == 0 && selectionEnd == 0) {
             resetCurrentWord()
             svc.clearSuggestions()
-        } else {
-            clearIfEditorWasCleared()
         }
     }
 

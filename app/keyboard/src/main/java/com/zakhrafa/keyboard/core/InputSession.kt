@@ -66,7 +66,7 @@ class InputSession {
      * deliberately excludes a selection, so using it alone makes Backspace appear to
      * do nothing in many chat editors after the user highlights text.
      */
-    fun delete(inputConnection: InputConnection?, fallbackLength: Int = 1): Boolean {
+    fun delete(inputConnection: InputConnection?, fallbackLength: () -> Int = { 1 }): Boolean {
         if (inputConnection == null) return false
         if (deleteSelectedText(inputConnection)) return true
         activeFrame?.let { frame ->
@@ -89,7 +89,7 @@ class InputSession {
             tokens.removeLast()
             currentWord = currentWord.dropLast(token.logical.length)
         } else {
-            return inputConnection.deleteSurroundingText(fallbackLength.coerceAtLeast(1), 0)
+            return inputConnection.deleteSurroundingText(fallbackLength().coerceAtLeast(1), 0)
         }
         return true
     }
