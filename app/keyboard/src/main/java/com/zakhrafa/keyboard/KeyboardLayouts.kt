@@ -18,7 +18,7 @@ internal const val SYMBOLS_PAGE1_ROW2 = "@#\$%&-+()/"
 // Row 3 follows the active language so Latin ? never sits next to the
 // Arabic ؟ (which reads as a "flipped question mark" to Latin users).
 // The Arabic row also carries the tatweel used to elongate Arabic text.
-internal const val SYMBOLS_PAGE1_ROW3_EN = "=*\"':;?"
+internal const val SYMBOLS_PAGE1_ROW3_EN = "=*\"':;!?"
 internal const val SYMBOLS_PAGE1_ROW3_AR = "=*\"':؛!؟ـ"
 internal const val SYMBOLS_PAGE1_ROW4 = "_€£¥©®°¶§"
 internal const val SYMBOLS_PAGE2_ROW1 = "~`^<>[]{}"
