@@ -89,6 +89,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
     private var lastBuiltThemeName = ""
     private var lastBuiltPrefsHash = 0
     private var lastBuiltMode: LayoutMode? = null
+    private var utilitySheetOpen = false
 
     private val repeatHandler = Handler(Looper.getMainLooper())
     private var deleteRepeater: Runnable? = null
@@ -103,9 +104,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
     }
 
     override fun onCreateInputView(): View {
-        try {
-            AdManager.initialize(this)
-        } catch (_: Exception) {}
+        // Ads live only in SettingsActivity. Initializing MobileAds here did binder
+        // work against GMS on every IME start and contributed to ANRs (bqft.c).
         loadSettings(applyDefaultLanguage = true)
         settingsRepository = KeyboardSettingsRepository(this)
         uiState = uiState.copy(mode = mode.toCoreMode(), lastTextMode = lastTextMode.toCoreMode())
@@ -144,9 +144,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
         if (::clipboardManager.isInitialized) {
             if (supportsSuggestions()) clipboardManager.start() else clipboardManager.stop()
         }
-        // A style/clipboard sheet replaces keyboardContainer. Rebuild every time a
-        // new editor becomes visible so an old utility panel cannot leak into it.
-        if (::rootLayout.isInitialized && ::renderer.isInitialized) rebuildKeyboard()
+        // Rebuild only when a utility sheet replaced the keys; otherwise a full
+        // rebuild on every editor focus caused main-thread ANRs (Unsafe.park).
+        if (::rootLayout.isInitialized && ::renderer.isInitialized) {
+            if (utilitySheetOpen) rebuildKeyboard() else maybeRebuild()
+        }
         beginEditorMonitoring()
     }
 
@@ -215,6 +217,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
                     ::keyboardContainer.isInitialized &&
                     keyboardContainer.isAttachedToWindow
                 ) {
+                    utilitySheetOpen = true
                     stylePicker.showStylePicker()
                 }
             }
@@ -225,9 +228,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
         if (::clipboardManager.isInitialized) clipboardManager.stop()
         if (::inputHandler.isInitialized) inputHandler.resetCurrentWord()
         clearSuggestions()
-        // Utility sheets are transient. Never preserve one across a keyboard hide /
-        // show cycle, even when an OEM reuses the same input view instance.
-        if (::rootLayout.isInitialized && ::renderer.isInitialized) rebuildKeyboard()
+        // Clear a leftover utility sheet for the next show; skip the rebuild when
+        // the normal keyboard is already showing.
+        if (utilitySheetOpen && ::rootLayout.isInitialized && ::renderer.isInitialized) {
+            rebuildKeyboard()
+        }
         super.onWindowHidden()
     }
 
@@ -300,13 +305,19 @@ class ZakhrafaKeyboardService : InputMethodService() {
         } else {
             idleControls.addView(renderer.controlButton("📋", widthDp = 40) { openClipboard() })
             if (activeStyle != null) {
-                idleControls.addView(renderer.controlButton(activeStyleDisplayName(), widthDp = 150) { stylePicker.showStylePicker() })
+                idleControls.addView(renderer.controlButton(activeStyleDisplayName(), widthDp = 150) {
+                    utilitySheetOpen = true
+                    stylePicker.showStylePicker()
+                })
                 idleControls.addView(renderer.controlButton("إلغاء", widthDp = 66) {
                     setActiveDecorationStyle(null)
                     rebuildKeyboard()
                 })
             } else {
-                idleControls.addView(renderer.controlButton("✦  اختر زخرفة", widthDp = 150) { stylePicker.showStylePicker() })
+                idleControls.addView(renderer.controlButton("✦  اختر زخرفة", widthDp = 150) {
+                    utilitySheetOpen = true
+                    stylePicker.showStylePicker()
+                })
             }
         }
 
@@ -353,9 +364,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
         keyboardContainer.removeAllViews()
 
         if (mode == LayoutMode.EMOJI) {
+            utilitySheetOpen = true
             emojiPicker.showEmojiPicker()
             return
         }
+        utilitySheetOpen = false
 
         val frame = CroppedBackgroundFrame(this).apply {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -415,7 +428,9 @@ class ZakhrafaKeyboardService : InputMethodService() {
         inputHandler.commitKey(raw)
         if (mode == LayoutMode.ENGLISH && englishShifted && raw.length == 1 && raw[0].isLetter()) {
             englishShifted = false
-            rebuildKeyboard()
+            // Only key labels change on auto-unshift; a full rebuild here was a
+            // frequent main-thread ANR source while typing English.
+            if (::keyboardContainer.isInitialized && mode == LayoutMode.ENGLISH) renderKeys()
         }
     }
 
@@ -477,7 +492,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
     internal fun toggleEnglishShift() {
         if (mode != LayoutMode.ENGLISH) return
         englishShifted = !englishShifted
-        rebuildKeyboard()
+        if (::keyboardContainer.isInitialized) renderKeys()
     }
 
     internal fun switchMode(nextMode: LayoutMode) {
@@ -672,6 +687,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
             android.widget.Toast.makeText(this, "الحافظة مخفية في حقول كلمات المرور", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
+        utilitySheetOpen = true
         keyboardContainer.removeAllViews()
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
