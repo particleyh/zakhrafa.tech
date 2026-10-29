@@ -40,6 +40,11 @@ class SettingsActivity : ComponentActivity() {
         const val ACTION_UNLOCK_THEME = "com.keyboard.calligraphy.UNLOCK_THEME"
         const val PLAY_PACKAGE_ID = "com.keyboard.calligraphy"
         const val PLAY_URL = "https://play.google.com/store/apps/details?id=$PLAY_PACKAGE_ID"
+
+        // Set whenever a theme/style is unlocked in a secondary unlock activity so
+        // the main settings list re-renders on return instead of showing stale 🔒.
+        @Volatile
+        var unlocksChanged = false
     }
 
     private val prefs by lazy { getSharedPreferences("keyboard_settings", MODE_PRIVATE) }
@@ -77,6 +82,24 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // A theme/style was unlocked while this list was in the background —
+        // re-render so freshly unlocked items no longer show the 🔒 label.
+        if (unlocksChanged && ::content.isInitialized && intent?.action == null) {
+            unlocksChanged = false
+            render()
+            return
+        }
+        if (intent?.action == ACTION_PICK_BACKGROUND) return
+        if (intent?.action == ACTION_UNLOCK_STYLE ||
+            intent?.action == ACTION_UNLOCK_THEME) {
+            return
+        }
+        waitForKeyboardSelection()
+        showSetupTutorialIfNeeded()
+    }
+
     override fun onDestroy() {
         selectionCheck?.let { selectionHandler.removeCallbacks(it) }
         rewardRetry?.let { rewardHandler.removeCallbacks(it) }
@@ -96,6 +119,7 @@ class SettingsActivity : ComponentActivity() {
             button = "🎬  شاهد الإعلان وافتح الزخرفة"
         ) {
             AdManager.unlockPremiumStyle(this, styleName)
+            unlocksChanged = true
             Toast.makeText(this, "تم فتح الزخرفة", Toast.LENGTH_SHORT).show()
         }
     }
@@ -113,6 +137,7 @@ class SettingsActivity : ComponentActivity() {
         ) {
             AdManager.unlockPremiumTheme(this, theme.name)
             prefs.edit().putString("theme", theme.name).apply()
+            unlocksChanged = true
             Toast.makeText(this, "تم تفعيل ثيم ${theme.label}", Toast.LENGTH_SHORT).show()
         }
     }
@@ -172,9 +197,12 @@ class SettingsActivity : ComponentActivity() {
             adButton.setOnClickListener { if (adButton.isEnabled) action() }
         }
 
+        var rewarded = false
         fun grantReward() {
+            // Idempotent: onUserEarnedReward can fire alongside a dismissal race.
+            if (rewarded) return
+            rewarded = true
             onReward()
-            finish()
         }
 
         lateinit var requestReward: (Int) -> Unit
@@ -185,6 +213,7 @@ class SettingsActivity : ComponentActivity() {
             shareButton.setOnClickListener {
                 sharePremiumUnlock {
                     grantReward()
+                    finish()
                 }
             }
         }
@@ -206,7 +235,25 @@ class SettingsActivity : ComponentActivity() {
                 if (available) {
                     status.text = "الإعلان جاهز. شاهد الإعلان لفتح الميزة بشكل دائم."
                     setAdButtonEnabled(button, true) {
-                        val shown = AdManager.showRewarded(this) { grantReward() }
+                        // The reward is persisted the instant it is earned (inside
+                        // AdManager). We only close this screen after the ad is gone
+                        // AND the reward landed — never mid-ad, so the unlock can't
+                        // be lost to a racing finish().
+                        val shown = AdManager.showRewarded(
+                            this,
+                            onReward = { grantReward() },
+                            onDismissed = label@{
+                                if (isFinishing || isDestroyed) return@label
+                                if (rewarded) {
+                                    finish()
+                                } else {
+                                    // Ad closed before the reward was earned. Keep
+                                    // the screen open and let them retry.
+                                    status.text = "أغلقت الإعلان قبل اكتماله. أعد المحاولة لفتح الميزة."
+                                    setAdButtonEnabled(button, true) { requestReward(1) }
+                                }
+                            }
+                        )
                         if (!shown) requestReward(1)
                     }
                 } else if (attempt == 1) {
@@ -220,17 +267,6 @@ class SettingsActivity : ComponentActivity() {
         }
 
         requestReward(1)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (intent?.action == ACTION_PICK_BACKGROUND) return
-        if (intent?.action == ACTION_UNLOCK_STYLE ||
-            intent?.action == ACTION_UNLOCK_THEME) {
-            return
-        }
-        waitForKeyboardSelection()
-        showSetupTutorialIfNeeded()
     }
 
     @Suppress("DEPRECATION")

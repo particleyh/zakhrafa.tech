@@ -1,5 +1,6 @@
 package com.zakhrafa.keyboard
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
@@ -33,6 +34,13 @@ import com.zakhrafa.keyboard.theme.Themes
 class ZakhrafaKeyboardService : InputMethodService() {
 
     enum class LayoutMode { ARABIC, ENGLISH, SYMBOLS, EMOJI }
+
+    private companion object {
+        const val THREE_DAYS_MS = 3L * 24 * 60 * 60 * 1000
+        const val REVIEW_SNOOZE_MS = 14L * 24 * 60 * 60 * 1000
+        const val MIN_REVIEW_SESSIONS = 10
+        const val MAX_REVIEW_PROMPTS = 3
+    }
 
     data class KeyboardPrefs(
         val keyHeightDp: Int = 46,
@@ -92,6 +100,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
     private var lastBuiltPrefsHash = 0
     private var lastBuiltMode: LayoutMode? = null
     private var utilitySheetOpen = false
+    // Slim rating strip pinned above the keys once a user has typed for 3+ days.
+    private var reviewBanner: LinearLayout? = null
 
     private val repeatHandler = Handler(Looper.getMainLooper())
     private var deleteRepeater: Runnable? = null
@@ -200,6 +210,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
         maybeRebuild()
         updateSuggestions()
+        bumpReviewSession()
         val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
         val pickerRequestedAt = prefs.getLong("open_style_picker_requested_at", 0L)
         // Remove both the v52 boolean and the v53 timestamp. Values are already
@@ -346,6 +357,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
         toolbarStrip.addView(suggestionsScroll)
         rootLayout.addView(toolbarStrip)
 
+        reviewBanner = null
+
         keyboardContainer = FrameLayout(this).apply {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             layoutParams = LinearLayout.LayoutParams(
@@ -356,10 +369,125 @@ class ZakhrafaKeyboardService : InputMethodService() {
         rootLayout.addView(keyboardContainer)
 
         renderKeys()
+        maybeShowReviewBanner()
         updateSuggestions()
         lastBuiltThemeName = currentTheme.name
         lastBuiltPrefsHash = keyboardPrefs.hashCode()
         lastBuiltMode = mode
+    }
+
+    // ─── Review prompt ─────────────────────────────────────────
+    // Once a user has actually used the keyboard for 3 days, pin a one-line
+    // rating strip above the keys. It stays until acted on and never blocks
+    // typing. Tapping "قيّم" deep-links to the Play listing; "لاحقاً" hides it
+    // and re-arms for 14 days so we never nag.
+
+    private fun maybeShowReviewBanner() {
+        if (!::rootLayout.isInitialized || !::renderer.isInitialized) return
+        if (reviewBanner != null) return
+        if (currentInputEditorInfo?.packageName == packageName) return
+        val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
+        if (prefs.getBoolean("review_rated", false)) return
+        val now = System.currentTimeMillis()
+        val firstOpen = prefs.getLong("review_first_open_at", 0L)
+        if (firstOpen == 0L) {
+            prefs.edit().putLong("review_first_open_at", now).apply()
+            return
+        }
+        if (now - firstOpen < THREE_DAYS_MS) return
+        if (prefs.getInt("review_sessions", 0) < MIN_REVIEW_SESSIONS) return
+        val shown = prefs.getInt("review_shown_count", 0)
+        if (shown >= MAX_REVIEW_PROMPTS) return
+        val snoozedUntil = prefs.getLong("review_snoozed_until", 0L)
+        if (now < snoozedUntil) return
+        rootLayout.addView(buildReviewBanner(), 0)
+    }
+
+    private fun buildReviewBanner(): LinearLayout {
+        val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
+        prefs.edit().putInt("review_shown_count", prefs.getInt("review_shown_count", 0) + 1).apply()
+        val theme = currentTheme
+        val banner = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(10), dp(5), dp(6), dp(5))
+            setBackgroundColor(theme.toolbarBackground)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val message = TextView(this).apply {
+            text = "هل أعجبك الكيبورد؟ قم بتقييمنا لنستمر في التحسينات وتقديم الأفضل!"
+            textSize = 12f
+            setTextColor(theme.toolbarTextColor)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        banner.addView(message)
+        banner.addView(reviewChip("قيّم ⭐", prominent = true) {
+            prefs.edit().putBoolean("review_rated", true).apply()
+            dismissReviewBanner()
+            openPlayListing()
+        })
+        banner.addView(reviewChip("لاحقاً", prominent = false) {
+            prefs.edit().putLong("review_snoozed_until", System.currentTimeMillis() + REVIEW_SNOOZE_MS).apply()
+            dismissReviewBanner()
+        })
+        reviewBanner = banner
+        return banner
+    }
+
+    private fun reviewChip(label: String, prominent: Boolean, onClick: () -> Unit): TextView {
+        val theme = currentTheme
+        return TextView(this).apply {
+            text = label
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(if (prominent) 0xFFFFFFFF.toInt() else theme.toolbarTextColor)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(if (prominent) theme.primaryColor else theme.surface)
+            }
+            setPadding(dp(8), dp(3), dp(8), dp(3))
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(3), 0, 0, 0) }
+            setOnClickListener {
+                tapFeedback(this)
+                onClick()
+            }
+        }
+    }
+
+    private fun dismissReviewBanner() {
+        val banner = reviewBanner ?: return
+        reviewBanner = null
+        (banner.parent as? ViewGroup)?.removeView(banner)
+    }
+
+    private fun openPlayListing() {
+        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(market)
+        } catch (_: Exception) {
+            val web = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { startActivity(web) }
+        }
+    }
+
+    private fun bumpReviewSession() {
+        val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
+        prefs.edit().putInt("review_sessions", prefs.getInt("review_sessions", 0) + 1).apply()
     }
 
     private fun renderKeys() {

@@ -137,12 +137,15 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         // content row directly above the bottom row; the page toggle sits at
         // the left edge of that same row so the bottom row never moves.
         val english = svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ENGLISH
+        // On numbers/emoji pages, the key that returns to letters reads "أبجد"
+        // when the keyboard will land on Arabic and "ABC" when on English.
+        val lettersLabel = if (english) "ABC" else "أبجد"
         val bottom = bottomRow(
             if (english) "space" else "مسافة",
             if (english) "," else "،"
         ).map { key ->
             if (key.label == "123") {
-                key.copy(label = "ABC", output = "ABC", action = { svc.switchMode(svc.lastTextMode) })
+                key.copy(label = lettersLabel, output = lettersLabel, action = { svc.switchMode(svc.lastTextMode) })
             } else key
         }
         val pageOneLongPress = mapOf(
@@ -179,6 +182,8 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
     private fun emojiRows(): List<List<KeySpec>> {
         val skinTones = listOf("\uD83C\uDFFB", "\uD83C\uDFFC", "\uD83C\uDFFD", "\uD83C\uDFFE", "\uD83C\uDFFF")
         fun skinToneVariants(base: String): List<String> = skinTones.map { base + it }
+        val english = svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ENGLISH
+        val lettersLabel = if (english) "ABC" else "أبجد"
 
         return listOf(
             listOf("😀", "😁", "😂", "🤣", "😍", "🥰", "😘", "😎", "😉", "😊").map { KeySpec(it) },
@@ -198,8 +203,8 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             listOf("🔥", "✨", "⭐", "🌹", "🎉", "✅", "💯", "👑", "💎", "🎮").map { KeySpec(it) },
             listOf("🇸🇦", "🇦🇪", "🇰🇼", "🇶🇦", "🇧🇭", "🇴🇲", "🇾🇪", "🇮🇶", "🇪🇬", "🇯🇴").map { KeySpec(it) },
             listOf(
-                KeySpec("ABC", special = true, weight = 1.18f, action = { svc.switchMode(svc.lastTextMode) }),
-                KeySpec("123", special = true, weight = 1.14f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.SYMBOLS) }),
+                KeySpec(lettersLabel, special = true, weight = 1.3f, action = { svc.switchMode(svc.lastTextMode) }),
+                KeySpec("123", special = true, weight = 1.3f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.SYMBOLS) }),
                 KeySpec("مسافة", " ", special = true, weight = 5.0f),
                 KeySpec("⌫", special = true, weight = 1.34f, action = { svc.deleteOne() }),
                 KeySpec("⏎", special = true, weight = 1.34f, action = { svc.enter() })

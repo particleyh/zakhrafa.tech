@@ -23,6 +23,10 @@ internal class EmojiPicker(
     private var isUpdatingSearch = false
     private var emojiCellSizePx = 0
 
+    private companion object {
+        const val MAX_SEARCH_RESULTS = 120
+    }
+
     fun showEmojiPicker() {
         svc.keyboardContainer.removeAllViews()
         categoryButtons.clear()
@@ -65,7 +69,8 @@ internal class EmojiPicker(
         }
         header.addView(searchInput)
 
-        header.addView(renderer.controlButton("ABC", widthDp = 52) {
+        val lettersLabel = if (svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ARABIC) "أبجد" else "ABC"
+        header.addView(renderer.controlButton(lettersLabel, widthDp = if (lettersLabel == "أبجد") 64 else 52) {
             svc.switchMode(svc.lastTextMode)
         })
         root.addView(header)
@@ -211,11 +216,14 @@ internal class EmojiPicker(
             else EmojiData.categories.getOrNull(currentCategoryIndex)?.let { addEmojiGrid(it.emojis) }
             return
         }
+        val names = EmojiNames.names(svc)
         val all = EmojiData.categories.flatMap { it.emojis }
+        val needle = query.trim()
         val filtered = all.filter { emoji ->
-            emoji.contains(query) || EmojiNames.nameFor(emoji).contains(query, ignoreCase = true)
+            emoji.contains(needle) || names[emoji]?.contains(needle, ignoreCase = true) == true
         }
-        addEmojiGrid(filtered)
+        // Cap results so a broad query can't inflate hundreds of cells at once.
+        addEmojiGrid(filtered.take(MAX_SEARCH_RESULTS))
     }
 
     private fun clearSearchWithoutFiltering() {
@@ -264,10 +272,7 @@ internal class EmojiPicker(
                     svc.commitKey(emoji)
                 }
                 setOnLongClickListener {
-                    val variants = EmojiData.skinToneVariants(emoji)
-                    if (variants.size > 1 && !emoji.contains("\uD83C\uDFFB")) {
-                        showSkinTonePopup(this, emoji)
-                    }
+                    if (EmojiData.supportsSkinTones(emoji)) showSkinTonePopup(this, emoji)
                     true
                 }
             }
@@ -323,62 +328,29 @@ internal class EmojiPicker(
 }
 
 object EmojiNames {
-    private val names = mapOf(
-        "😀" to "grinning face", "😃" to "grinning face smiling eyes",
-        "😄" to "grinning face sweat", "😁" to "beaming face",
-        "😆" to "grinning squinting", "😅" to "grinning sweat",
-        "🤣" to "rolling on floor", "😂" to "face tears of joy",
-        "🙂" to "slightly smiling", "😊" to "smiling face heart eyes",
-        "😇" to "smiling halo", "🥰" to "smiling hearts",
-        "😍" to "heart eyes", "🤩" to "star struck",
-        "😘" to "blowing kiss", "😗" to "kissing",
-        "😚" to "kissing closed eyes", "😙" to "kissing smiling",
-        "😋" to "face savoring", "😛" to "face with tongue",
-        "😜" to "winking tongue", "🤪" to "zany face",
-        "😝" to "squinting tongue", "🤑" to "money mouth",
-        "🤗" to "hugging face", "🤭" to "face hand over mouth",
-        "🤫" to "shushing face", "🤔" to "thinking face",
-        "😐" to "neutral face", "😑" to "expressionless",
-        "😶" to "face without mouth", "😏" to "smirking",
-        "😒" to "unamused", "🙄" to "eye roll",
-        "😬" to "grimacing", "🤥" to "lying face",
-        "😌" to "relieved", "😔" to "pensive",
-        "😪" to "sleepy", "🤤" to "drooling",
-        "😴" to "sleeping", "😷" to "face with mask",
-        "🤒" to "face thermometer", "🤕" to "face head bandage",
-        "🤢" to "nauseated", "🤮" to "face vomiting",
-        "🥵" to "hot face", "🥶" to "cold face",
-        "🥴" to "woozy face", "😵" to "face with crossed eyes",
-        "🤯" to "exploding head", "🤠" to "cowboy hat",
-        "🥳" to "partying face", "😎" to "smiling sunglasses",
-        "🤓" to "nerd face", "🧐" to "monocle face",
-        "😕" to "confused", "😟" to "worried",
-        "🙁" to "slightly frowning", "😮" to "face open mouth",
-        "😯" to "hushed", "😲" to "astonished",
-        "😳" to "flushed", "🥺" to "pleading face",
-        "😦" to "frowning open mouth", "😧" to "anguished",
-        "😨" to "fearful", "😰" to "anxious sweat",
-        "😥" to "sad but relieved", "😢" to "crying face",
-        "😭" to "loudly crying", "😱" to "face screaming",
-        "😖" to "confounded", "😣" to "persevering",
-        "😞" to "disappointed", "😓" to "downcast sweat",
-        "😩" to "weary", "😫" to "tired face",
-        "🥱" to "yawning face", "😤" to "face steam",
-        "😡" to "pouting face", "😠" to "angry face",
-        "🤬" to "face symbols", "😈" to "smiling devil",
-        "👿" to "angry devil", "💀" to "skull",
-        "💩" to "pile of poo", "🤡" to "clown face",
-        "👹" to "ogre", "👻" to "ghost",
-        "👽" to "alien", "👾" to "alien monster",
-        "🤖" to "robot", "👍" to "thumbs up",
-        "👎" to "thumbs down", "❤️" to "red heart",
-        "🔥" to "fire", "✨" to "sparkles",
-        "⭐" to "star", "🎉" to "party popper",
-        "🌹" to "rose", "💯" to "hundred points",
-        "👑" to "crown", "💎" to "gem stone"
-    )
+    @Volatile
+    private var cached: Map<String, String>? = null
 
-    fun nameFor(emoji: String): String {
-        return names[emoji] ?: ""
+    /** Emoji → English name index, loaded once from assets/emoji_names.tsv. */
+    fun names(context: android.content.Context): Map<String, String> {
+        cached?.let { return it }
+        synchronized(this) {
+            cached?.let { return it }
+            val loaded = HashMap<String, String>(4096)
+            try {
+                context.assets.open("emoji_names.tsv").bufferedReader(Charsets.UTF_8).use { reader ->
+                    reader.forEachLine { line ->
+                        val tab = line.indexOf('\t')
+                        if (tab > 0) loaded[line.substring(0, tab)] = line.substring(tab + 1)
+                    }
+                }
+            } catch (_: Exception) {
+                // Search simply narrows to the emoji itself when the asset is missing.
+            }
+            cached = loaded
+            return loaded
+        }
     }
+
+    fun nameFor(context: android.content.Context, emoji: String): String = names(context)[emoji].orEmpty()
 }

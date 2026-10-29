@@ -205,14 +205,40 @@ object AdManager {
         }, 30_000)
     }
 
-    fun showRewarded(activity: Activity, onReward: () -> Unit): Boolean {
+    /**
+     * Shows a rewarded ad. [onReward] fires the instant the user earns the reward,
+     * which is when we persist the unlock — it must never wait for the dismiss
+     * callback, which can lag behind the reward (or be skipped on early close).
+     * [onDismissed] fires after the ad leaves the screen so callers can refresh UI
+     * without ever finishing an Activity mid-ad.
+     */
+    fun showRewarded(activity: Activity, onReward: () -> Unit, onDismissed: () -> Unit = {}): Boolean {
         try {
             if (activity.isFinishing || activity.isDestroyed) return false
             val ad = rewardedAd ?: return false
             rewardedAd = null
             ad.show(activity, object : com.google.android.gms.ads.OnUserEarnedRewardListener {
-                override fun onUserEarnedReward(rewardItem: RewardItem) { onReward() }
+                override fun onUserEarnedReward(rewardItem: RewardItem) {
+                    // Persist immediately so the reward survives even if the user
+                    // closes the ad the moment it is dismissed.
+                    mainHandler.post { runCatching { onReward() } }
+                }
             })
+            ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    ad.fullScreenContentCallback = null
+                    rewardedAd = null
+                    loadRewardedInternal(activity.applicationContext)
+                    mainHandler.post { runCatching { onDismissed() } }
+                }
+
+                override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                    ad.fullScreenContentCallback = null
+                    rewardedAd = null
+                    loadRewardedInternal(activity.applicationContext)
+                    mainHandler.post { runCatching { onDismissed() } }
+                }
+            }
             return true
         } catch (_: Exception) {
             rewardedAd = null
