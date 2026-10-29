@@ -223,7 +223,8 @@ internal class EmojiPicker(
             emoji.contains(needle) || names[emoji]?.contains(needle, ignoreCase = true) == true
         }
         // Cap results so a broad query can't inflate hundreds of cells at once.
-        addEmojiGrid(filtered.take(MAX_SEARCH_RESULTS))
+        // Glyph-check first so unrenderable matches don't consume the cap.
+        addEmojiGrid(filtered.filter { EmojiData.rendersOnDevice(it) }.take(MAX_SEARCH_RESULTS))
     }
 
     private fun clearSearchWithoutFiltering() {
@@ -256,8 +257,23 @@ internal class EmojiPicker(
 
     private fun addEmojiGrid(emojis: List<String>) {
         gridContainer?.removeAllViews()
+        // Hide emojis the device font can't draw (blank "tofu" squares).
+        val visible = emojis.filter { EmojiData.rendersOnDevice(it) }
+        if (visible.isEmpty()) {
+            gridContainer?.addView(TextView(svc).apply {
+                text = "لا توجد نتائج"
+                textSize = 14f
+                setTextColor(svc.currentTheme.toolbarTextColor)
+                gravity = Gravity.CENTER
+                layoutParams = GridLayout.LayoutParams().apply {
+                    columnSpec = GridLayout.spec(0, 8)
+                    setPadding(0, svc.dp(30), 0, 0)
+                }
+            })
+            return
+        }
         val size = emojiCellSizePx.takeIf { it > 0 } ?: svc.dp(42)
-        emojis.forEach { emoji ->
+        visible.forEach { emoji ->
             val btn = TextView(svc).apply {
                 text = emoji
                 textSize = 26f
@@ -272,7 +288,8 @@ internal class EmojiPicker(
                     svc.commitKey(emoji)
                 }
                 setOnLongClickListener {
-                    if (EmojiData.supportsSkinTones(emoji)) showSkinTonePopup(this, emoji)
+                    val variants = EmojiData.skinToneVariants(emoji)
+                    if (variants.isNotEmpty()) showSkinTonePopup(this, emoji, variants)
                     true
                 }
             }
@@ -280,7 +297,7 @@ internal class EmojiPicker(
         }
     }
 
-    private fun showSkinTonePopup(anchor: View, baseEmoji: String) {
+    private fun showSkinTonePopup(anchor: View, baseEmoji: String, variants: List<String>) {
         val row = LinearLayout(svc).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -303,9 +320,7 @@ internal class EmojiPicker(
             elevation = svc.dp(10).toFloat()
         }
 
-        listOf(baseEmoji) + EmojiData.skinToneVariants(baseEmoji).filter { it != baseEmoji }.distinct().take(5).let { list ->
-            (listOf(baseEmoji) + list).distinct().take(6)
-        }.forEach { variant ->
+        (listOf(baseEmoji) + variants).distinct().take(6).forEach { variant ->
             row.addView(TextView(svc).apply {
                 text = variant
                 textSize = 24f

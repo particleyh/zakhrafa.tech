@@ -1,6 +1,7 @@
 package com.zakhrafa.keyboard
 
 import android.content.Context
+import android.graphics.Paint
 
 object EmojiData {
 
@@ -20,8 +21,21 @@ object EmojiData {
 
     fun supportsSkinTones(emoji: String): Boolean = emoji in skinToneBaseSet
 
+    private val glyphPaint = Paint()
+    private val glyphCache = HashMap<String, Boolean>()
+
+    /**
+     * True when this device's fonts actually contain a glyph for the emoji.
+     * Emojis from recent Unicode releases render as an empty "tofu" square on
+     * fonts that predate them, so the picker hides whatever can't be drawn.
+     * Results are cached for the process lifetime.
+     */
+    fun rendersOnDevice(emoji: String): Boolean =
+        glyphCache.getOrPut(emoji) { glyphPaint.hasGlyph(emoji) }
+
     fun skinToneVariants(base: String): List<String> =
-        if (!supportsSkinTones(base)) emptyList() else skinTones.map { base + it }
+        if (!supportsSkinTones(base)) emptyList()
+        else skinTones.map { base + it }.filter { rendersOnDevice(it) }
 
     private val kaomoji = listOf(
         "(｡•́‿•̀｡)", "(╯°□°）╯︵ ┻━┻", "¯\\_(ツ)_/¯", "(づ｡◕‿‿◕｡)づ",
