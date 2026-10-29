@@ -11,6 +11,17 @@ internal const val ARABIC_NUMBER_ROW_LEFT_TO_RIGHT = "١٢٣٤٥٦٧٨٩٠"
 internal const val ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT = "1234567890"
 internal val ARABIC_DIACRITIC_VARIANTS = listOf("َ", "ُ", "ِ", "ّ", "ْ", "ً", "ٌ", "ٍ", "ٰ")
 
+// Samsung-style symbol pages: page 1 carries the everyday signs, page 2 the
+// extended set. Each string is one physical row, left to right. The toggle
+// key and delete sit outside the strings so their positions stay fixed.
+internal const val SYMBOLS_PAGE1_ROW2 = "@#\$%&-+()/"
+internal const val SYMBOLS_PAGE1_ROW3 = "=*\"':؛!؟;?"
+internal const val SYMBOLS_PAGE1_ROW4 = "_€£¥©®°¶§"
+internal const val SYMBOLS_PAGE2_ROW1 = "~`^<>[]{}"
+internal const val SYMBOLS_PAGE2_ROW2 = "\\|…–—•«»¡¿"
+internal const val SYMBOLS_PAGE2_ROW3 = "±×÷≠≈√∞π∑µ"
+internal const val SYMBOLS_PAGE2_ROW4 = "™¢₹₩℅∆‰℃℉"
+
 internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     data class KeySpec(
@@ -123,7 +134,8 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         // The bottom row mirrors the letter layouts so permanent keys (emoji,
         // space, period, enter) keep the same position when switching modes.
         // Only the 123/ABC label differs. Delete stays at the right edge of the
-        // content row directly above the bottom row, like Arabic/English.
+        // content row directly above the bottom row; the page toggle sits at
+        // the left edge of that same row so the bottom row never moves.
         val english = svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ENGLISH
         val bottom = bottomRow(
             if (english) "space" else "مسافة",
@@ -133,12 +145,33 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
                 key.copy(label = "ABC", output = "ABC", action = { svc.switchMode(svc.lastTextMode) })
             } else key
         }
-        return listOf(
-            "1234567890".map { KeySpec(it.toString()) },
-            listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/").map { KeySpec(it) },
-            listOf("=", "*", "\"", "'", ":", "؛", "!", "؟", ".", ",").map { KeySpec(it) },
-            listOf("€", "£", "¥", "©", "®", "°", "¶", "§", "~", "\\").map { KeySpec(it) } +
-                KeySpec("⌫", special = true, weight = 1.5f, action = { svc.deleteOne() }),
+        val pageOneLongPress = mapOf(
+            "%" to listOf("٪"),
+            "\"" to listOf("“", "”"),
+            "'" to listOf("‘", "’")
+        )
+        fun row(value: String) = value.map { char ->
+            val label = char.toString()
+            KeySpec(label, longPress = pageOneLongPress[label] ?: emptyList())
+        }
+        val toggle = KeySpec(
+            label = if (svc.symbolPage == 0) "1/2" else "2/2",
+            special = true,
+            weight = 1.18f,
+            action = { svc.toggleSymbolPage() }
+        )
+        val delete = KeySpec("⌫", special = true, weight = 1.5f, action = { svc.deleteOne() })
+        return if (svc.symbolPage == 0) listOf(
+            numberRow(),
+            row(SYMBOLS_PAGE1_ROW2),
+            row(SYMBOLS_PAGE1_ROW3),
+            listOf(toggle) + row(SYMBOLS_PAGE1_ROW4) + delete,
+            bottom
+        ) else listOf(
+            row(SYMBOLS_PAGE2_ROW1),
+            row(SYMBOLS_PAGE2_ROW2),
+            row(SYMBOLS_PAGE2_ROW3),
+            listOf(toggle) + row(SYMBOLS_PAGE2_ROW4) + delete,
             bottom
         )
     }

@@ -53,6 +53,8 @@ class ZakhrafaKeyboardService : InputMethodService() {
         internal set
     var englishShifted = false
         internal set
+    var symbolPage = 0
+        internal set
     var currentWord = ""
         internal set
     var currentCommittedLength = 0
@@ -495,8 +497,15 @@ class ZakhrafaKeyboardService : InputMethodService() {
         if (::keyboardContainer.isInitialized) renderKeys()
     }
 
+    internal fun toggleSymbolPage() {
+        if (mode != LayoutMode.SYMBOLS) return
+        symbolPage = 1 - symbolPage
+        if (::keyboardContainer.isInitialized) renderKeys()
+    }
+
     internal fun switchMode(nextMode: LayoutMode) {
         mode = nextMode
+        symbolPage = 0
         if (nextMode == LayoutMode.ARABIC || nextMode == LayoutMode.ENGLISH) lastTextMode = nextMode
         if (nextMode != LayoutMode.ENGLISH) englishShifted = false
         restoreActiveStyleForMode()
@@ -567,10 +576,12 @@ class ZakhrafaKeyboardService : InputMethodService() {
         if (needsSymbols && !editorForcedSymbols) {
             if (mode == LayoutMode.ARABIC || mode == LayoutMode.ENGLISH) lastTextMode = mode
             mode = LayoutMode.SYMBOLS
+            symbolPage = 0
             englishShifted = false
             editorForcedSymbols = true
         } else if (!needsSymbols && editorForcedSymbols) {
             mode = lastTextMode
+            symbolPage = 0
             editorForcedSymbols = false
         }
     }

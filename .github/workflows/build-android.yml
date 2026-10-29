@@ -64,8 +64,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: keyboard-v5.9.4
-          name: Zakhrafa Keyboard 5.9.4
+          tag_name: keyboard-v5.9.5
+          name: Zakhrafa Keyboard 5.9.5
           files: |
             app/keyboard/build/outputs/bundle/release/*.aab
             app/keyboard/build/outputs/apk/release/*.apk
