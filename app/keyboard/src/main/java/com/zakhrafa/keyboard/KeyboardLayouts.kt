@@ -120,19 +120,26 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
     }
 
     private fun symbolRows(): List<List<KeySpec>> {
+        // The bottom row mirrors the letter layouts so permanent keys (emoji,
+        // space, period, enter) keep the same position when switching modes.
+        // Only the 123/ABC label differs. Delete stays at the right edge of the
+        // content row directly above the bottom row, like Arabic/English.
+        val english = svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ENGLISH
+        val bottom = bottomRow(
+            if (english) "space" else "مسافة",
+            if (english) "," else "،"
+        ).map { key ->
+            if (key.label == "123") {
+                key.copy(label = "ABC", output = "ABC", action = { svc.switchMode(svc.lastTextMode) })
+            } else key
+        }
         return listOf(
             "1234567890".map { KeySpec(it.toString()) },
             listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/").map { KeySpec(it) },
             listOf("=", "*", "\"", "'", ":", "؛", "!", "؟", ".", ",").map { KeySpec(it) },
-            listOf("€", "£", "¥", "©", "®", "°", "¶", "§", "~", "\\").map { KeySpec(it) },
-            listOf(
-                KeySpec("ABC", special = true, weight = 1.18f, action = { svc.switchMode(svc.lastTextMode) }),
-                KeySpec("🌐", special = true, weight = 1f, action = { svc.toggleLanguage() }),
-                KeySpec("😊", special = true, weight = 1f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.EMOJI) }),
-                KeySpec("مسافة", " ", special = true, weight = 4.7f),
-                KeySpec("⌫", special = true, weight = 1.34f, action = { svc.deleteOne() }),
-                KeySpec(svc.enterKeyLabel(), special = true, weight = 1.34f, action = { svc.enter() })
-            )
+            listOf("€", "£", "¥", "©", "®", "°", "¶", "§", "~", "\\").map { KeySpec(it) } +
+                KeySpec("⌫", special = true, weight = 1.5f, action = { svc.deleteOne() }),
+            bottom
         )
     }
 
