@@ -15,10 +15,14 @@ internal val ARABIC_DIACRITIC_VARIANTS = listOf("َ", "ُ", "ِ", "ّ", "ْ", "�
 // extended set. Each string is one physical row, left to right. The toggle
 // key and delete sit outside the strings so their positions stay fixed.
 internal const val SYMBOLS_PAGE1_ROW2 = "@#\$%&-+()/"
-internal const val SYMBOLS_PAGE1_ROW3 = "=*\"':؛!؟;?"
+// Row 3 follows the active language so Latin ? never sits next to the
+// Arabic ؟ (which reads as a "flipped question mark" to Latin users).
+// The Arabic row also carries the tatweel used to elongate Arabic text.
+internal const val SYMBOLS_PAGE1_ROW3_EN = "=*\"':;?"
+internal const val SYMBOLS_PAGE1_ROW3_AR = "=*\"':؛!؟ـ"
 internal const val SYMBOLS_PAGE1_ROW4 = "_€£¥©®°¶§"
 internal const val SYMBOLS_PAGE2_ROW1 = "~`^<>[]{}"
-internal const val SYMBOLS_PAGE2_ROW2 = "\\|…–—•«»¡¿"
+internal const val SYMBOLS_PAGE2_ROW2 = "\\|…–—•«»№†"
 internal const val SYMBOLS_PAGE2_ROW3 = "±×÷≠≈√∞π∑µ"
 internal const val SYMBOLS_PAGE2_ROW4 = "™¢₹₩℅∆‰℃℉"
 
@@ -149,7 +153,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             } else key
         }
         val pageOneLongPress = mapOf(
-            "%" to listOf("٪"),
+            "%" to if (english) listOf("‰") else listOf("٪"),
             "\"" to listOf("“", "”"),
             "'" to listOf("‘", "’")
         )
@@ -167,7 +171,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         return if (svc.symbolPage == 0) listOf(
             numberRow(),
             row(SYMBOLS_PAGE1_ROW2),
-            row(SYMBOLS_PAGE1_ROW3),
+            row(if (english) SYMBOLS_PAGE1_ROW3_EN else SYMBOLS_PAGE1_ROW3_AR),
             listOf(toggle) + row(SYMBOLS_PAGE1_ROW4) + delete,
             bottom
         ) else listOf(
@@ -176,39 +180,6 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             row(SYMBOLS_PAGE2_ROW3),
             listOf(toggle) + row(SYMBOLS_PAGE2_ROW4) + delete,
             bottom
-        )
-    }
-
-    private fun emojiRows(): List<List<KeySpec>> {
-        val skinTones = listOf("\uD83C\uDFFB", "\uD83C\uDFFC", "\uD83C\uDFFD", "\uD83C\uDFFE", "\uD83C\uDFFF")
-        fun skinToneVariants(base: String): List<String> = skinTones.map { base + it }
-        val english = svc.lastTextMode == ZakhrafaKeyboardService.LayoutMode.ENGLISH
-        val lettersLabel = if (english) "ABC" else "أبجد"
-
-        return listOf(
-            listOf("😀", "😁", "😂", "🤣", "😍", "🥰", "😘", "😎", "😉", "😊").map { KeySpec(it) },
-            listOf("😅", "😭", "🥹", "😡", "😤", "🤔", "🙄", "😴", "🤲", "🙏").map { KeySpec(it) },
-            listOf(
-                KeySpec("👍", longPress = skinToneVariants("👍")),
-                KeySpec("👎", longPress = skinToneVariants("👎")),
-                KeySpec("👏", longPress = skinToneVariants("👏")),
-                KeySpec("💪", longPress = skinToneVariants("💪")),
-                KeySpec("🤝", longPress = skinToneVariants("🤝")),
-                KeySpec("👌", longPress = skinToneVariants("👌")),
-                KeySpec("✌", longPress = skinToneVariants("✌")),
-                KeySpec("🤍"),
-                KeySpec("❤️"),
-                KeySpec("💔")
-            ),
-            listOf("🔥", "✨", "⭐", "🌹", "🎉", "✅", "💯", "👑", "💎", "🎮").map { KeySpec(it) },
-            listOf("🇸🇦", "🇦🇪", "🇰🇼", "🇶🇦", "🇧🇭", "🇴🇲", "🇾🇪", "🇮🇶", "🇪🇬", "🇯🇴").map { KeySpec(it) },
-            listOf(
-                KeySpec(lettersLabel, special = true, weight = 1.3f, action = { svc.switchMode(svc.lastTextMode) }),
-                KeySpec("123", special = true, weight = 1.3f, action = { svc.switchMode(ZakhrafaKeyboardService.LayoutMode.SYMBOLS) }),
-                KeySpec("مسافة", " ", special = true, weight = 5.0f),
-                KeySpec("⌫", special = true, weight = 1.34f, action = { svc.deleteOne() }),
-                KeySpec("⏎", special = true, weight = 1.34f, action = { svc.enter() })
-            )
         )
     }
 
