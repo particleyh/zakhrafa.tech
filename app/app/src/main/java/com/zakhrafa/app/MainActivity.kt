@@ -67,7 +67,7 @@ import kotlinx.coroutines.launch
 
 internal const val DECORATOR_PACKAGE_ID = "com.zakhrafa.tech"
 internal const val DECORATOR_PLAY_URL = "https://play.google.com/store/apps/details?id=$DECORATOR_PACKAGE_ID"
-internal const val PRIVACY_URL = "https://zakhrafa.tech/privacy-policy.html"
+internal const val PRIVACY_URL = "https://zakhrafa.tech/privacy-policy"
 internal const val SUPPORT_URL = "https://zakhrafa.tech/support.html"
 internal const val TERMS_URL = "https://zakhrafa.tech/terms.html"
 internal const val WEBSITE_URL = "https://zakhrafa.tech"

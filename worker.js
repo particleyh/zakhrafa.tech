@@ -20,6 +20,11 @@ export default {
       });
     }
 
+    if (url.pathname === '/privacy-policy') {
+      const request2 = new Request(new URL('/privacy-policy-app.html', url), request);
+      return env.ASSETS.fetch(request2);
+    }
+
     return env.ASSETS.fetch(request);
   }
 };
