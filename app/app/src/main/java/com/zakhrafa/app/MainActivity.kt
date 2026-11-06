@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        AdManager.initialize(this)
         setContent {
             val darkPreference by AppearanceManager.getDarkMode(this)
                 .collectAsState(initial = null)
@@ -124,6 +125,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The 24h ad-free window may have expired while backgrounded.
+        AdManager.refreshAdFreeStatus(this)
     }
 }
 
@@ -151,6 +158,7 @@ private fun MainScreen(darkTheme: Boolean, onToggleTheme: () -> Unit) {
     val tabs = AppTab.entries
     val onSuccessfulCopy = {
         if (recordSuccessfulCopyForRating(context)) showRatingPrompt = true
+        AdManager.onSuccessfulCopy(context, ratingDialogVisible = showRatingPrompt)
     }
 
     if (showRatingPrompt) {
@@ -196,21 +204,24 @@ private fun MainScreen(darkTheme: Boolean, onToggleTheme: () -> Unit) {
             )
         },
         bottomBar = {
-            NavigationBar {
-                tabs.forEachIndexed { index, tab ->
-                    val icon = when (tab) {
-                        AppTab.DECORATE -> Icons.Default.Star
-                        AppTab.SYMBOLS -> Icons.Default.Face
-                        AppTab.FAVORITES -> Icons.Default.Favorite
-                        AppTab.ABOUT -> Icons.Default.Info
+            Column {
+                NavigationBar {
+                    tabs.forEachIndexed { index, tab ->
+                        val icon = when (tab) {
+                            AppTab.DECORATE -> Icons.Default.Star
+                            AppTab.SYMBOLS -> Icons.Default.Face
+                            AppTab.FAVORITES -> Icons.Default.Favorite
+                            AppTab.ABOUT -> Icons.Default.Info
+                        }
+                        NavigationBarItem(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            icon = { Icon(icon, contentDescription = tab.label) },
+                            label = { Text(tab.label, maxLines = 1) }
+                        )
                     }
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { Icon(icon, contentDescription = tab.label) },
-                        label = { Text(tab.label, maxLines = 1) }
-                    )
                 }
+                AdBanner()
             }
         }
     ) { padding ->

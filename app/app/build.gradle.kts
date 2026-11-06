@@ -12,8 +12,8 @@ android {
         applicationId = "com.zakhrafa.tech"
         minSdk = 24
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.8.5"
+        versionCode = 21
+        versionName = "1.8.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -61,6 +61,7 @@ kotlin {
 
 dependencies {
     implementation(project(":engine"))
+    implementation(libs.play.services.ads)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

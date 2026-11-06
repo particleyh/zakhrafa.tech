@@ -1,12 +1,13 @@
 package com.zakhrafa.app
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -19,8 +20,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -75,6 +79,46 @@ internal fun AboutScreen() {
                     }
                     OutlinedButton(onClick = { shareApp(context) }, modifier = Modifier.weight(1f)) {
                         Text("شاركه")
+                    }
+                }
+            }
+        }
+
+        item {
+            val adFree by AdManager.adFree.collectAsState()
+            var rewardCancel by remember { mutableStateOf<(() -> Unit)?>(null) }
+            DisposableEffect(Unit) { onDispose { rewardCancel?.invoke() } }
+            InfoCard(title = "بدون إعلانات") {
+                if (adFree) {
+                    Text(
+                        "الإعلانات معطلة على هذا الجهاز لمدة 24 ساعة.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        "شاهد إعلاناً قصيراً لإيقاف جميع الإعلانات لمدة 24 ساعة.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(onClick = {
+                        val activity = context as? Activity ?: return@Button
+                        rewardCancel?.invoke()
+                        rewardCancel = AdManager.requestRewarded(context) { available ->
+                            rewardCancel = null
+                            if (available) {
+                                AdManager.showRewarded(
+                                    activity,
+                                    onReward = { AdManager.startAdFree(context) }
+                                )
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "تعذّر تحميل الإعلان، حاول لاحقاً",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }) {
+                        Text("شاهد الإعلان وأزلها 24 ساعة")
                     }
                 }
             }
