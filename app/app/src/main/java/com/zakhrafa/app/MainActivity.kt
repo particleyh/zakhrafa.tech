@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -263,6 +264,9 @@ internal fun copyToClipboard(context: Context, text: String, onCopied: () -> Uni
     clipboard.setPrimaryClip(ClipData.newPlainText("Zakhrafa", text))
     copyHistoryScope.launch {
         CopyHistoryManager.recordCopy(context.applicationContext, text)
+    }
+    runCatching {
+        FirebaseAnalytics.getInstance(context.applicationContext).logEvent("copy", null)
     }
     Toast.makeText(context, "تم النسخ ✓", Toast.LENGTH_SHORT).show()
     onCopied()

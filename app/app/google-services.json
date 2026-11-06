@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "920915317223",
+    "project_id": "zakhrafa-3d520",
+    "storage_bucket": "zakhrafa-3d520.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:920915317223:android:ac8903100b90aecdc06d42",
+        "android_client_info": {
+          "package_name": "com.zakhrafa.tech"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1YthYod8E6NjBE9dfqaYFjjGmlP7P-F8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -105,6 +105,11 @@ object AdManager {
         val until = System.currentTimeMillis() + AD_FREE_DURATION_MS
         prefs(context.applicationContext).edit().putLong(AD_FREE_UNTIL_KEY, until).apply()
         _adFree.value = true
+        runCatching {
+            com.google.firebase.analytics.FirebaseAnalytics
+                .getInstance(context.applicationContext)
+                .logEvent("ad_free_earned", null)
+        }
     }
 
     // ─── Banner ───────────────────────────────────────────────

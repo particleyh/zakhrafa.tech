@@ -128,7 +128,7 @@ internal fun AboutScreen() {
         item {
             InfoCard(title = "خصوصيتك") {
                 Text(
-                    "كل الزخرفة تتم على جهازك، بلا حساب أو تتبع أو إرسال لما تكتبه.",
+                    "الزخرفة تتم بالكامل على جهازك ولا نجمع النصوص التي تكتبها. نستخدم بيانات استخدام مجهولة الهوية لتحسين التطبيق.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(onClick = { openUrl(context, PRIVACY_URL) }) {
