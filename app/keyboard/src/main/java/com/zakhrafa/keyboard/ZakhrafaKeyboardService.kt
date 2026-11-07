@@ -143,8 +143,9 @@ class ZakhrafaKeyboardService : InputMethodService() {
     }
 
     override fun onCreateInputView(): View {
-        // Ads live only in SettingsActivity. Initializing MobileAds here did binder
-        // work against GMS on every IME start and contributed to ANRs (bqft.c).
+        // Never initialize MobileAds here: binder work against GMS on the IME
+        // hot path contributed to ANRs (bqft.c). The preload lives in
+        // ZakhrafaApp at process birth instead.
         loadSettings(applyDefaultLanguage = true)
         settingsRepository = KeyboardSettingsRepository(this)
         uiState = uiState.copy(mode = mode.toCoreMode(), lastTextMode = lastTextMode.toCoreMode())

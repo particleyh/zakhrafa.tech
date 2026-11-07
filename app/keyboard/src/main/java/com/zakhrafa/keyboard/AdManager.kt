@@ -202,7 +202,7 @@ object AdManager {
         mainHandler.postDelayed({
             rewardedReloadScheduled = false
             loadRewardedInternal(context)
-        }, 30_000)
+        }, 10_000)
     }
 
     /**

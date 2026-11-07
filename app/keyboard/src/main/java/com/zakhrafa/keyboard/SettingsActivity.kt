@@ -31,6 +31,10 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.zakhrafa.engine.ZakhrafaEngine
+import com.zakhrafa.engine.models.StyleMap
+import com.zakhrafa.keyboard.core.DecorationCatalog
+import com.zakhrafa.keyboard.core.KeyboardMode
 import com.zakhrafa.keyboard.theme.KeyboardTheme
 import com.zakhrafa.keyboard.theme.Themes
 import java.io.File
@@ -62,6 +66,7 @@ class SettingsActivity : ComponentActivity() {
     private var selectionCheck: Runnable? = null
     private val rewardHandler = Handler(Looper.getMainLooper())
     private var rewardRetry: Runnable? = null
+    private var rewardWatchdog: Runnable? = null
     private var rewardRequestCancel: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,6 +118,7 @@ class SettingsActivity : ComponentActivity() {
     override fun onDestroy() {
         selectionCheck?.let { selectionHandler.removeCallbacks(it) }
         rewardRetry?.let { rewardHandler.removeCallbacks(it) }
+        rewardWatchdog?.let { rewardHandler.removeCallbacks(it) }
         rewardRequestCancel?.invoke()
         tutorialDialog?.dismiss()
         super.onDestroy()
@@ -123,10 +129,19 @@ class SettingsActivity : ComponentActivity() {
             render()
             return
         }
+        // Show the style doing its job on the preview's suggestion chips so the
+        // user sees what they are buying (catalogue is process-cached, cheap).
+        val styleMap = runCatching {
+            val catalog = DecorationCatalog(this)
+            catalog.stylesFor(KeyboardMode.ARABIC).firstOrNull { it.style.name == styleName }?.style
+                ?: catalog.stylesFor(KeyboardMode.ENGLISH).firstOrNull { it.style.name == styleName }?.style
+        }.getOrNull()
         showRewardUnlock(
             title = "فتح زخرفة مميزة",
             message = "شاهد إعلان مكافأة واحد لفتح هذه الزخرفة بشكل دائم.",
-            button = "🎬  شاهد الإعلان وافتح الزخرفة"
+            button = "🎬  شاهد الإعلان وافتح الزخرفة",
+            previewTheme = selectedTheme(),
+            previewStyle = styleMap
         ) {
             AdManager.unlockPremiumStyle(this, styleName)
             unlocksChanged = true
@@ -150,7 +165,8 @@ class SettingsActivity : ComponentActivity() {
         showRewardUnlock(
             title = "فتح ثيم ${theme.label}",
             message = "شاهد إعلان مكافأة واحد لفتح هذا الثيم بشكل دائم.",
-            button = "🎬  شاهد الإعلان وافتح الثيم"
+            button = "🎬  شاهد الإعلان وافتح الثيم",
+            previewTheme = theme
         ) {
             AdManager.unlockPremiumTheme(this, theme.name)
             prefs.edit().putString("theme", theme.name).apply()
@@ -170,6 +186,8 @@ class SettingsActivity : ComponentActivity() {
         title: String,
         message: String,
         button: String,
+        previewTheme: KeyboardTheme? = null,
+        previewStyle: StyleMap? = null,
         onReward: () -> Unit
     ) {
         val theme = selectedTheme()
@@ -177,7 +195,18 @@ class SettingsActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), dp(40), dp(28), dp(40))
-            setBackgroundColor(theme.background)
+        }
+        // Live keyboard snippet above the lock: the user judges the exact
+        // theme/style they are about to unlock instead of buying blind.
+        if (previewTheme != null) {
+            screen.addView(
+                keyboardPreview(previewTheme, previewStyle, includeUserBackground = false).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, dp(16)) }
+                }
+            )
         }
         screen.addView(TextView(this).apply {
             text = "🔒"
@@ -212,7 +241,20 @@ class SettingsActivity : ComponentActivity() {
         screen.addView(status)
         screen.addView(adButton)
         screen.addView(shareButton)
-        setContentView(screen)
+        // The preview makes this screen taller than some phones: scroll instead
+        // of clipping the buttons off the bottom.
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(theme.background)
+            addView(
+                screen,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        setContentView(scroll)
         logEvent("kb_unlock_screen", "title" to title)
 
         fun setAdButtonEnabled(label: String, enabled: Boolean, action: () -> Unit) {
@@ -247,6 +289,8 @@ class SettingsActivity : ComponentActivity() {
         requestReward = { attempt ->
             rewardRetry?.let { rewardHandler.removeCallbacks(it) }
             rewardRetry = null
+            rewardWatchdog?.let { rewardHandler.removeCallbacks(it) }
+            rewardWatchdog = null
             rewardRequestCancel?.invoke()
             status.text = if (attempt == 1) {
                 "جارٍ التحقق من إعلان مكافأة متاح…"
@@ -255,8 +299,32 @@ class SettingsActivity : ComponentActivity() {
             }
             shareButton.visibility = View.GONE
             setAdButtonEnabled("جارٍ تحميل الإعلان…", false) {}
+            // AdMob answers eventually, but on a bad network "eventually" can be
+            // long. After 6s without an answer, cancel the pending request (so no
+            // late callback fights this UI) and offer retry + share immediately —
+            // a later retry hits an already-loaded ad instantly.
+            val watchdog = Runnable {
+                rewardWatchdog = null
+                rewardRequestCancel?.invoke()
+                rewardRequestCancel = null
+                if (isFinishing || isDestroyed) return@Runnable
+                logEvent("kb_ad_request_timeout", "attempt" to attempt.toString())
+                status.text = "استغرق تحميل الإعلان وقتاً طويلاً. تحقق من الشبكة وحاول مجدداً."
+                setAdButtonEnabled("↻  إعادة المحاولة", true) { requestReward(1) }
+                shareButton.visibility = View.VISIBLE
+                shareButton.setOnClickListener {
+                    sharePremiumUnlock {
+                        grantReward()
+                        finish()
+                    }
+                }
+            }
+            rewardWatchdog = watchdog
+            rewardHandler.postDelayed(watchdog, 6_000)
             rewardRequestCancel = AdManager.requestRewarded(this) { available ->
                 rewardRequestCancel = null
+                rewardWatchdog?.let { rewardHandler.removeCallbacks(it) }
+                rewardWatchdog = null
                 if (isFinishing || isDestroyed) return@requestRewarded
                 if (available) {
                     status.text = "الإعلان جاهز. شاهد الإعلان لفتح الميزة بشكل دائم."
@@ -921,8 +989,11 @@ class SettingsActivity : ComponentActivity() {
         })
     }
 
-    private fun keyboardPreview(): FrameLayout {
-        val theme = selectedTheme()
+    private fun keyboardPreview(
+        theme: KeyboardTheme = selectedTheme(),
+        style: StyleMap? = null,
+        includeUserBackground: Boolean = true
+    ): FrameLayout {
         val isEnglish = prefs.getString("default_language", "ar") == "en"
         val keyHeight = prefs.getInt("key_height", 46)
         val labelScale = prefs.getInt("label_scale", 100)
@@ -936,7 +1007,8 @@ class SettingsActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
-        val backgroundUri = prefs.getString("background_uri", "").orEmpty()
+        val backgroundUri =
+            if (includeUserBackground) prefs.getString("background_uri", "").orEmpty() else ""
         if (backgroundUri.isNotBlank()) {
             val image = ImageView(this).apply {
                 setImageURI(Uri.parse(backgroundUri))
@@ -962,9 +1034,18 @@ class SettingsActivity : ComponentActivity() {
             addView(LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(dp(2), 0, dp(2), dp(5))
-                addView(previewChip(if (isEnglish) "ℤ𝕒𝕜𝕙𝕣𝕒𝕗𝕒" else "زخہرفہة", theme, true))
-                addView(previewChip(if (isEnglish) "♡ Zakhrafa ♡" else "♡ زخرفة ♡", theme, false))
-                addView(previewChip(if (isEnglish) "꧁Zakhrafa꧂" else "꧁زخرفة꧂", theme, false))
+                val samples = if (style != null) {
+                    stylePreviewSamples(style)
+                } else {
+                    listOf(
+                        if (isEnglish) "ℤ𝕒𝕜𝕙𝕣𝕒𝕗𝕒" else "زخہرفہة",
+                        if (isEnglish) "♡ Zakhrafa ♡" else "♡ زخرفة ♡",
+                        if (isEnglish) "꧁Zakhrafa꧂" else "꧁زخرفة꧂"
+                    )
+                }
+                samples.forEachIndexed { index, label ->
+                    addView(previewChip(label, theme, index == 0))
+                }
             })
 
             addView(LinearLayout(this@SettingsActivity).apply {
@@ -985,6 +1066,31 @@ class SettingsActivity : ComponentActivity() {
         }
         frame.addView(keyboard)
         return frame
+    }
+
+    /** Sample words styled exactly the way live suggestions would render them. */
+    private fun stylePreviewSamples(style: StyleMap): List<String> {
+        val english = style.name.startsWith("En Style") || style.category.startsWith("en")
+        val base = when {
+            style.category == "frame" -> listOf("زخرفة", "أهلاً بك", "مرحبا")
+            english -> listOf("Zakhrafa", "Hello", "Welcome")
+            else -> listOf("زخرفة", "أهلا", "مرحبا")
+        }
+        return base.map { applyStylePreview(it, style) }
+    }
+
+    private fun applyStylePreview(sample: String, style: StyleMap): String {
+        return runCatching {
+            val styled = when {
+                style.category == "frame" ->
+                    style.map[DecorationCatalog.FRAME_LEFT].orEmpty() + sample +
+                        style.map[DecorationCatalog.FRAME_RIGHT].orEmpty()
+                style.name.startsWith("En Style") || style.category.startsWith("en") ->
+                    ZakhrafaEngine.applyEnglishStyle(sample, style)
+                else -> ZakhrafaEngine.mapChars(sample, style.map)
+            }
+            styled.ifBlank { sample }
+        }.getOrDefault(sample)
     }
 
     private fun previewRows(isEnglish: Boolean, showNumbers: Boolean, wideSpacebar: Boolean): List<List<String>> {
