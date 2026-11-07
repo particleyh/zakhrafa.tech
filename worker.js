@@ -20,9 +20,26 @@ export default {
       });
     }
 
+    if (url.pathname === '/__worker-canary') {
+      return new Response('NEW-WORKER-022be9b', {
+        headers: { 'Cache-Control': 'no-store' }
+      });
+    }
+
+    if (url.pathname === '/privacy-policy.html') {
+      const req = new Request(new URL('/privacy-policy', url), request);
+      const res = await env.ASSETS.fetch(req);
+      const headers = new Headers(res.headers);
+      headers.set('Cache-Control', 'no-store');
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+    }
+
     if (url.pathname === '/privacy-policy') {
-      const request2 = new Request(new URL('/privacy-policy-app.html', url), request);
-      return env.ASSETS.fetch(request2);
+      const request2 = new Request(new URL('/privacy-policy-app', url), request);
+      const res = await env.ASSETS.fetch(request2);
+      const headers = new Headers(res.headers);
+      headers.set('Cache-Control', 'no-store');
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
     }
 
     return env.ASSETS.fetch(request);

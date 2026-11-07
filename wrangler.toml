@@ -12,3 +12,4 @@ workers_dev = true
 [assets]
 directory = "html"
 binding = "ASSETS"
+run_worker_first = true
