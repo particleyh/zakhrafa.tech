@@ -87,7 +87,13 @@ class SettingsActivity : ComponentActivity() {
         super.onResume()
         // A theme/style was unlocked while this list was in the background —
         // re-render so freshly unlocked items no longer show the 🔒 label.
-        if (unlocksChanged && ::content.isInitialized && intent?.action == null) {
+        // The main list is launched with ACTION_MAIN from the app icon, so the
+        // check must accept that too — gating on action == null alone left the
+        // launcher path stale, showing 🔒 forever and re-selling the ad after
+        // every successful unlock.
+        val listAction = intent?.action
+        val isMainList = listAction == null || listAction == Intent.ACTION_MAIN
+        if (unlocksChanged && ::content.isInitialized && isMainList) {
             unlocksChanged = false
             render()
             return
@@ -120,12 +126,14 @@ class SettingsActivity : ComponentActivity() {
             button = "🎬  شاهد الإعلان وافتح الزخرفة"
         ) {
             AdManager.unlockPremiumStyle(this, styleName)
-            // Apply it to the live keyboard right away — the user just watched an
-            // ad for THIS style, so it must be active when they return, not merely
-            // unlocked behind another trip through the picker.
-            ZakhrafaKeyboardService.instance?.applyUnlockedStyle(styleName)
             unlocksChanged = true
             logEvent("kb_style_unlocked", "style" to styleName)
+            // Apply to the live keyboard last, isolated: the unlock itself must
+            // never be lost to a repaint exception (it used to run inline, and a
+            // throw silently skipped the toast + re-render while the ad was done).
+            runCatching {
+                ZakhrafaKeyboardService.instance?.applyUnlockedStyle(styleName)
+            }.onFailure { logEvent("kb_apply_failed", "kind" to "style") }
             Toast.makeText(this, "تم فتح الزخرفة وتفعيلها الآن", Toast.LENGTH_SHORT).show()
         }
     }
@@ -143,11 +151,14 @@ class SettingsActivity : ComponentActivity() {
         ) {
             AdManager.unlockPremiumTheme(this, theme.name)
             prefs.edit().putString("theme", theme.name).apply()
-            // Select AND repaint the keyboard instantly; unlocking alone left the
-            // theme looking unchanged, which read as "the ad did nothing".
-            ZakhrafaKeyboardService.instance?.applyUnlockedTheme()
             unlocksChanged = true
             logEvent("kb_theme_unlocked", "theme" to theme.name)
+            // Repaint last and isolated: persisting the unlock + selection and the
+            // list re-render flag must succeed even if the open keyboard's repaint
+            // throws — otherwise the user watched a real ad and still sees 🔒.
+            runCatching {
+                ZakhrafaKeyboardService.instance?.applyUnlockedTheme()
+            }.onFailure { logEvent("kb_apply_failed", "kind" to "theme") }
             Toast.makeText(this, "تم فتح ثيم ${theme.label} وتفعيله", Toast.LENGTH_SHORT).show()
         }
     }
@@ -637,7 +648,12 @@ class SettingsActivity : ComponentActivity() {
                 value = if (unlocked) theme.label else "🔒 ${theme.label}  •  إعلان مكافأة",
                 selected = current && unlocked,
                 onClick = {
-                    if (unlocked) {
+                    // Re-check the unlock state at click time: the row was rendered
+                    // earlier and a stale 🔒 must never re-open the paid unlock flow
+                    // for a theme that is already unlocked.
+                    val isNowUnlocked = !theme.isRewarded ||
+                        AdManager.isPremiumThemeUnlocked(this, theme.name)
+                    if (isNowUnlocked) {
                         updateString("theme", theme.name)
                     } else {
                         startActivity(Intent(this, SettingsActivity::class.java).apply {
