@@ -48,7 +48,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun arabicRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow())
+        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow(arabicDigits = true))
         rows.add(ARABIC_TOP_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(ARABIC_HOME_ROW_LEFT_TO_RIGHT.map { arabicKey(it) })
         rows.add(listOf(
@@ -78,6 +78,10 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
             "ك" -> listOf("گ", "ڪ", "ك")
             "ق" -> listOf("ڨ", "ق")
             "ف" -> listOf("ڤ", "ف")
+            // Persian/Urdu letters Arabic keyboards must not force a layout switch for.
+            "ب" -> listOf("پ")
+            "ج" -> listOf("چ")
+            "ز" -> listOf("ژ")
             else -> emptyList()
         }
         return letterVariants.distinct().filter { it != label }
@@ -85,7 +89,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
 
     private fun englishRows(): List<List<KeySpec>> {
         val rows = mutableListOf<List<KeySpec>>()
-        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow())
+        if (svc.keyboardPrefs.numberRow || svc.isSensitiveEditor()) rows.add(numberRow(arabicDigits = false))
         fun letters(value: String) = if (svc.englishShifted) value.uppercase() else value
         rows.add(letters("qwertyuiop").map { KeySpec(it.toString()) })
         rows.add(listOf(
@@ -169,7 +173,7 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         )
         val delete = KeySpec("⌫", special = true, weight = 1.5f, action = { svc.deleteOne() })
         return if (svc.symbolPage == 0) listOf(
-            numberRow(),
+            numberRow(arabicDigits = !english),
             row(SYMBOLS_PAGE1_ROW2),
             row(if (english) SYMBOLS_PAGE1_ROW3_EN else SYMBOLS_PAGE1_ROW3_AR),
             listOf(toggle) + row(SYMBOLS_PAGE1_ROW4) + delete,
@@ -183,14 +187,18 @@ internal class KeyboardLayouts(private val svc: ZakhrafaKeyboardService) {
         )
     }
 
-    fun numberRow(): List<KeySpec> {
-        return ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT.mapIndexed { index, digit ->
-            // Western digits are the visible default in both language modes. Arabic
-            // digits stay one long press away, which satisfies both number systems
-            // without stealing a full row from everyday typing.
+    /**
+     * Digit row follows the active language: Arabic mode leads with Arabic-Indic
+     * digits, English/symbols-with-English with Western digits, and the other
+     * system stays one long press away either way.
+     */
+    fun numberRow(arabicDigits: Boolean): List<KeySpec> {
+        val primary = if (arabicDigits) ARABIC_NUMBER_ROW_LEFT_TO_RIGHT else ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT
+        val secondary = if (arabicDigits) ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT else ARABIC_NUMBER_ROW_LEFT_TO_RIGHT
+        return primary.mapIndexed { index, digit ->
             KeySpec(
                 label = digit.toString(),
-                longPress = listOf(ARABIC_NUMBER_ROW_LEFT_TO_RIGHT[index].toString())
+                longPress = listOf(secondary[index].toString())
             )
         }
     }

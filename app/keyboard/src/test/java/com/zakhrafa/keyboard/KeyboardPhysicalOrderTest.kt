@@ -19,7 +19,7 @@ class KeyboardPhysicalOrderTest {
     }
 
     @Test
-    fun numberRowsKeepWesternDigitsVisibleAndArabicDigitsOneLongPressAway() {
+    fun numberRowsKeepBothDigitSystemsOneLongPressAway() {
         assertEquals("١٢٣٤٥٦٧٨٩٠", ARABIC_NUMBER_ROW_LEFT_TO_RIGHT)
         assertEquals("1234567890", ENGLISH_NUMBER_ROW_LEFT_TO_RIGHT)
         assertEquals(

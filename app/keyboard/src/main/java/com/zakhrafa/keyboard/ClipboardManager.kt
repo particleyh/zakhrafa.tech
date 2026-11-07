@@ -156,6 +156,7 @@ internal class ClipboardManager(private val svc: ZakhrafaKeyboardService) {
             pendingLink = null
             pendingSignature = null
             if (fromChange) svc.updateSuggestions()
+            svc.refreshClipboardSheetIfOpen()
             return
         }
         if (snapshot.signature == observedSignature) return
@@ -171,6 +172,7 @@ internal class ClipboardManager(private val svc: ZakhrafaKeyboardService) {
             pendingSignature = null
         }
         svc.updateSuggestions()
+        svc.refreshClipboardSheetIfOpen()
     }
 
     private fun readPrimaryClip(): ClipSnapshot? {

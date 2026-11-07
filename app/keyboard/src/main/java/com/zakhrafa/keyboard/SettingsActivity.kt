@@ -28,6 +28,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.zakhrafa.keyboard.theme.KeyboardTheme
 import com.zakhrafa.keyboard.theme.Themes
 import java.io.File
@@ -119,8 +120,13 @@ class SettingsActivity : ComponentActivity() {
             button = "🎬  شاهد الإعلان وافتح الزخرفة"
         ) {
             AdManager.unlockPremiumStyle(this, styleName)
+            // Apply it to the live keyboard right away — the user just watched an
+            // ad for THIS style, so it must be active when they return, not merely
+            // unlocked behind another trip through the picker.
+            ZakhrafaKeyboardService.instance?.applyUnlockedStyle(styleName)
             unlocksChanged = true
-            Toast.makeText(this, "تم فتح الزخرفة", Toast.LENGTH_SHORT).show()
+            logEvent("kb_style_unlocked", "style" to styleName)
+            Toast.makeText(this, "تم فتح الزخرفة وتفعيلها الآن", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -137,8 +143,12 @@ class SettingsActivity : ComponentActivity() {
         ) {
             AdManager.unlockPremiumTheme(this, theme.name)
             prefs.edit().putString("theme", theme.name).apply()
+            // Select AND repaint the keyboard instantly; unlocking alone left the
+            // theme looking unchanged, which read as "the ad did nothing".
+            ZakhrafaKeyboardService.instance?.applyUnlockedTheme()
             unlocksChanged = true
-            Toast.makeText(this, "تم تفعيل ثيم ${theme.label}", Toast.LENGTH_SHORT).show()
+            logEvent("kb_theme_unlocked", "theme" to theme.name)
+            Toast.makeText(this, "تم فتح ثيم ${theme.label} وتفعيله", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -189,6 +199,7 @@ class SettingsActivity : ComponentActivity() {
         screen.addView(adButton)
         screen.addView(shareButton)
         setContentView(screen)
+        logEvent("kb_unlock_screen", "title" to title)
 
         fun setAdButtonEnabled(label: String, enabled: Boolean, action: () -> Unit) {
             adButton.text = label
@@ -202,6 +213,7 @@ class SettingsActivity : ComponentActivity() {
             // Idempotent: onUserEarnedReward can fire alongside a dismissal race.
             if (rewarded) return
             rewarded = true
+            logEvent("kb_reward_earned", "title" to title)
             onReward()
         }
 
@@ -249,9 +261,18 @@ class SettingsActivity : ComponentActivity() {
                                 } else {
                                     // Ad closed before the reward was earned. Keep
                                     // the screen open and let them retry.
+                                    logEvent("kb_reward_closed_incomplete", "title" to title)
                                     status.text = "أغلقت الإعلان قبل اكتماله. أعد المحاولة لفتح الميزة."
                                     setAdButtonEnabled(button, true) { requestReward(1) }
                                 }
+                            },
+                            onFailedToShow = label@{
+                                // The ad itself failed to render (no fill / not ready).
+                                // Tell the truth so users don't think they "lost" a view.
+                                if (isFinishing || isDestroyed) return@label
+                                logEvent("kb_ad_show_failed", "title" to title)
+                                status.text = "تعذّر عرض الإعلان الآن. حاول بعد لحظات."
+                                setAdButtonEnabled("↻  إعادة المحاولة", true) { requestReward(1) }
                             }
                         )
                         if (!shown) requestReward(1)
@@ -807,6 +828,13 @@ class SettingsActivity : ComponentActivity() {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = rounded(0xFFFFFFFF.toInt(), dp(10).toFloat(), 0xFFDDE3EA.toInt())
+            // Keep the test box visible above the keyboard: some devices don't
+            // scroll the focused child into view when the window resizes.
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    settingsScroll?.postDelayed({ settingsScroll?.fullScroll(View.FOCUS_DOWN) }, 150)
+                }
+            }
         })
     }
 
@@ -963,6 +991,16 @@ class SettingsActivity : ComponentActivity() {
     private fun updateString(key: String, value: String) {
         prefs.edit().putString(key, value).apply()
         render()
+    }
+
+    private fun logEvent(name: String, vararg params: Pair<String, String>) {
+        // Reward-flow telemetry: without it, "watched the ad but nothing happened"
+        // reports are undiagnosable from outside the device.
+        runCatching {
+            val bundle = Bundle()
+            params.forEach { (key, value) -> bundle.putString(key, value) }
+            FirebaseAnalytics.getInstance(this).logEvent(name, bundle)
+        }
     }
 
     private fun updateInt(key: String, value: Int) {

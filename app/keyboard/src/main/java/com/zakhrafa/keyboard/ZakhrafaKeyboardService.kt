@@ -35,11 +35,16 @@ class ZakhrafaKeyboardService : InputMethodService() {
 
     enum class LayoutMode { ARABIC, ENGLISH, SYMBOLS, EMOJI }
 
-    private companion object {
+    internal companion object {
         const val THREE_DAYS_MS = 3L * 24 * 60 * 60 * 1000
         const val REVIEW_SNOOZE_MS = 14L * 24 * 60 * 60 * 1000
         const val MIN_REVIEW_SESSIONS = 10
         const val MAX_REVIEW_PROMPTS = 3
+
+        // Live handle so reward unlocks finished in SettingsActivity can apply the
+        // style/theme to the keyboard immediately instead of waiting for the next
+        // window show (which is what made watched ads look like they did nothing).
+        var instance: ZakhrafaKeyboardService? = null
     }
 
     data class KeyboardPrefs(
@@ -100,6 +105,9 @@ class ZakhrafaKeyboardService : InputMethodService() {
     private var lastBuiltPrefsHash = 0
     private var lastBuiltMode: LayoutMode? = null
     private var utilitySheetOpen = false
+    // True only while the clipboard sheet itself is showing, so incoming clip
+    // changes can repaint it without disturbing other utility sheets.
+    private var clipboardSheetOpen = false
     // Slim rating strip pinned above the keys once a user has typed for 3+ days.
     private var reviewBanner: LinearLayout? = null
 
@@ -113,6 +121,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
         token = 53
         hintMaxChars = 2048
         hintMaxLines = 10
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
     }
 
     override fun onCreateInputView(): View {
@@ -154,7 +167,10 @@ class ZakhrafaKeyboardService : InputMethodService() {
         if (::inputHandler.isInitialized) inputHandler.resetCurrentWord()
         clearSuggestions()
         if (::clipboardManager.isInitialized) {
-            if (supportsSuggestions()) clipboardManager.start() else clipboardManager.stop()
+            // Listen whenever the editor is not a password field — clipboard history
+            // must also work in search/number boxes, which supportsSuggestions()
+            // excludes (TYPE_NULL etc.), and that made history look dead to users.
+            if (isSensitiveEditor()) clipboardManager.stop() else clipboardManager.start()
         }
         // Rebuild only when a utility sheet replaced the keys; otherwise a full
         // rebuild on every editor focus caused main-thread ANRs (Unsafe.park).
@@ -205,7 +221,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
     override fun onWindowShown() {
         super.onWindowShown()
         loadSettings(applyDefaultLanguage = false)
-        if (::clipboardManager.isInitialized && supportsSuggestions()) {
+        if (::clipboardManager.isInitialized && !isSensitiveEditor()) {
             clipboardManager.start()
         }
         maybeRebuild()
@@ -499,6 +515,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
             return
         }
         utilitySheetOpen = false
+        clipboardSheetOpen = false
 
         val frame = CroppedBackgroundFrame(this).apply {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
@@ -696,6 +713,46 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
     }
 
+    /**
+     * Reward unlocks are granted in SettingsActivity while the picker sheet is
+     * gone. Persist the style into its per-language slot and repaint right away so
+     * the keyboard shows it active the moment the ad closes — no second trip
+     * through "اختر زخرفة".
+     */
+    internal fun applyUnlockedStyle(styleName: String) {
+        val catalog = if (::decorationCatalog.isInitialized) {
+            decorationCatalog
+        } else {
+            DecorationCatalog(this).also { decorationCatalog = it }
+        }
+        val entry = catalog.stylesFor(KeyboardMode.ARABIC).firstOrNull { it.style.name == styleName }
+            ?: catalog.stylesFor(KeyboardMode.ENGLISH).firstOrNull { it.style.name == styleName }
+            ?: return
+        catalog.markRecent(entry.id)
+        val englishStyle = entry.style.name.startsWith("En Style")
+        val modeMatches = (englishStyle && effectiveTextMode() == LayoutMode.ENGLISH) ||
+            (!englishStyle && effectiveTextMode() == LayoutMode.ARABIC)
+        if (modeMatches) {
+            setActiveDecorationStyle(entry.style)
+            if (::rootLayout.isInitialized && ::renderer.isInitialized) rebuildKeyboard()
+        } else {
+            // Typing in the other language right now: park it in that slot so it is
+            // active as soon as they switch languages.
+            getSharedPreferences("keyboard_settings", MODE_PRIVATE).edit()
+                .putString(
+                    if (englishStyle) "active_style_en" else "active_style_ar",
+                    "${entry.style.category}|${entry.style.name}"
+                )
+                .apply()
+        }
+    }
+
+    /** Re-reads the just-unlocked theme from prefs and repaints the open keyboard. */
+    internal fun applyUnlockedTheme() {
+        loadSettings(applyDefaultLanguage = false)
+        if (::rootLayout.isInitialized && ::renderer.isInitialized) rebuildKeyboard()
+    }
+
     private fun adaptModeToEditor(info: EditorInfo?) {
         val inputClass = info?.inputType?.and(InputType.TYPE_MASK_CLASS) ?: return
         val needsSymbols = inputClass == InputType.TYPE_CLASS_NUMBER ||
@@ -827,6 +884,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
             return
         }
         utilitySheetOpen = true
+        clipboardSheetOpen = true
         keyboardContainer.removeAllViews()
         val sheet = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -841,7 +899,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
             addView(renderer.controlButton("إغلاق", widthDp = 72) { rebuildKeyboard() })
         })
         sheet.addView(TextView(this).apply {
-            text = "تُحفظ النسخ محلياً على جهازك فقط"
+            text = "تُحفظ النسخ محلياً على جهازك فقط — اضغط مطولاً على عنصر لحذفه"
             textSize = 11f
             gravity = Gravity.CENTER
             setTextColor(currentTheme.toolbarTextColor)
@@ -855,13 +913,21 @@ class ZakhrafaKeyboardService : InputMethodService() {
             })
             addView(renderer.controlButton("نسخ", weight = 1f) {
                 currentInputConnection?.performContextMenuAction(android.R.id.copy)
+                // The system clip listener repaints the sheet when the change lands;
+                // this delayed refresh also covers editors that never fire it, so the
+                // fresh copy shows up instead of a stale sheet.
+                keyboardContainer.postDelayed({ refreshClipboardSheetIfOpen() }, 300)
             })
             addView(renderer.controlButton("قص", weight = 1f) {
                 currentInputConnection?.performContextMenuAction(android.R.id.cut)
+                keyboardContainer.postDelayed({ refreshClipboardSheetIfOpen() }, 300)
             })
             addView(renderer.controlButton("لصق", weight = 1f) {
-                clipboardManager.latestText()?.let { clipboardManager.pasteFromHistory(it) }
-                rebuildKeyboard()
+                val pasted = pasteEntry(
+                    clipboardManager.latestText() ?: clipboardManager.getHistory().firstOrNull(),
+                    allowSystemFallback = true
+                )
+                if (pasted) rebuildKeyboard() else openClipboard()
             })
         })
 
@@ -871,11 +937,9 @@ class ZakhrafaKeyboardService : InputMethodService() {
 
         latestClipboard?.let { latest ->
             grid.addView(renderer.sheetItem("📌  آخر نسخة: ${clipboardManager.preview(latest, 34)}") {
-                val text = clipboardManager.latestText()
-                if (text != null) {
-                clipboardManager.pasteFromHistory(text)
-                rebuildKeyboard()
-            }
+                if (pasteEntry(clipboardManager.latestText(), allowSystemFallback = true)) {
+                    rebuildKeyboard()
+                }
             })
         }
 
@@ -891,12 +955,17 @@ class ZakhrafaKeyboardService : InputMethodService() {
                 }
                 pair.forEach { entry ->
                     val cell = renderer.sheetItem(clipboardManager.preview(entry, 20)) {
-                        clipboardManager.pasteFromHistory(entry)
-                        rebuildKeyboard()
+                        if (pasteEntry(entry, allowSystemFallback = false)) rebuildKeyboard()
                     }.apply {
                         layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                             setMargins(dp(2), dp(2), dp(2), dp(2))
                         }
+                    }
+                    cell.setOnLongClickListener {
+                        tapFeedback(cell)
+                        clipboardManager.removeEntry(entry)
+                        openClipboard()
+                        true
                     }
                     tapFeedback(cell)
                     row.addView(cell)
@@ -927,6 +996,34 @@ class ZakhrafaKeyboardService : InputMethodService() {
         }
         sheet.addView(scrollView)
         keyboardContainer.addView(sheet)
+    }
+
+    /**
+     * Pastes [text] with a clear failure path. History entries may never fall back
+     * to the system paste — that could silently paste a different clip than the one
+     * the user tapped — while the "paste" buttons may, because their intent is the
+     * current system clipboard anyway.
+     */
+    private fun pasteEntry(text: String?, allowSystemFallback: Boolean): Boolean {
+        if (text != null && clipboardManager.pasteFromHistory(text)) return true
+        if (allowSystemFallback) {
+            val viaSystem = runCatching {
+                currentInputConnection?.performContextMenuAction(android.R.id.paste) == true
+            }.getOrDefault(false)
+            if (viaSystem) return true
+        }
+        android.widget.Toast.makeText(this, "تعذر اللصق", android.widget.Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    /** Repaints the clipboard sheet after a clip change without touching other sheets. */
+    internal fun refreshClipboardSheetIfOpen() {
+        if (!clipboardSheetOpen || !::rootLayout.isInitialized) return
+        rootLayout.post {
+            if (clipboardSheetOpen && ::keyboardContainer.isInitialized && ::renderer.isInitialized) {
+                openClipboard()
+            }
+        }
     }
 
     private fun loadSettings(applyDefaultLanguage: Boolean) {
@@ -963,6 +1060,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
         repeatHandler.removeCallbacksAndMessages(null)
         if (::suggestions.isInitialized) suggestions.close()
         if (::clipboardManager.isInitialized) clipboardManager.stop()
+        if (instance === this) instance = null
         super.onDestroy()
     }
 }

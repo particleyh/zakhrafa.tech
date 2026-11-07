@@ -210,20 +210,23 @@ object AdManager {
      * which is when we persist the unlock — it must never wait for the dismiss
      * callback, which can lag behind the reward (or be skipped on early close).
      * [onDismissed] fires after the ad leaves the screen so callers can refresh UI
-     * without ever finishing an Activity mid-ad.
+     * without ever finishing an Activity mid-ad. [onFailedToShow] fires when the ad
+     * itself could not render, so the caller can offer a truthful retry instead of
+     * blaming an early close the user never made.
      */
-    fun showRewarded(activity: Activity, onReward: () -> Unit, onDismissed: () -> Unit = {}): Boolean {
+    fun showRewarded(
+        activity: Activity,
+        onReward: () -> Unit,
+        onDismissed: () -> Unit = {},
+        onFailedToShow: (() -> Unit)? = null
+    ): Boolean {
         try {
             if (activity.isFinishing || activity.isDestroyed) return false
             val ad = rewardedAd ?: return false
             rewardedAd = null
-            ad.show(activity, object : com.google.android.gms.ads.OnUserEarnedRewardListener {
-                override fun onUserEarnedReward(rewardItem: RewardItem) {
-                    // Persist immediately so the reward survives even if the user
-                    // closes the ad the moment it is dismissed.
-                    mainHandler.post { runCatching { onReward() } }
-                }
-            })
+            // Callbacks must be attached BEFORE show(): a fast dismissal can land
+            // before a post-show assignment and swallow the dismiss/fail signals,
+            // leaving the unlock screen stuck with no retry.
             ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                 override fun onAdDismissedFullScreenContent() {
                     ad.fullScreenContentCallback = null
@@ -236,9 +239,16 @@ object AdManager {
                     ad.fullScreenContentCallback = null
                     rewardedAd = null
                     loadRewardedInternal(activity.applicationContext)
-                    mainHandler.post { runCatching { onDismissed() } }
+                    mainHandler.post { runCatching { onFailedToShow?.invoke() ?: onDismissed() } }
                 }
             }
+            ad.show(activity, object : com.google.android.gms.ads.OnUserEarnedRewardListener {
+                override fun onUserEarnedReward(rewardItem: RewardItem) {
+                    // Persist immediately so the reward survives even if the user
+                    // closes the ad the moment it is dismissed.
+                    mainHandler.post { runCatching { onReward() } }
+                }
+            })
             return true
         } catch (_: Exception) {
             rewardedAd = null
