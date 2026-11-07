@@ -446,10 +446,13 @@ class SettingsActivity : ComponentActivity() {
             ),
             action = "اختار أول زخرفة"
         ) {
+            // apply() is durable enough here: the IME reads this in the same process
+            // (SharedPreferences memory is updated synchronously), and a blocking
+            // commit on the main thread was a needless disk-wait ANR surface.
             prefs.edit()
                 .remove("open_style_picker_once")
                 .putLong("open_style_picker_requested_at", System.currentTimeMillis())
-                .commit()
+                .apply()
             openKeyboardForFirstStyle()
         }
     }

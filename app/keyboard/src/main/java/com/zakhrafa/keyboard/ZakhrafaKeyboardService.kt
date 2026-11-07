@@ -36,8 +36,11 @@ class ZakhrafaKeyboardService : InputMethodService() {
     enum class LayoutMode { ARABIC, ENGLISH, SYMBOLS, EMOJI }
 
     internal companion object {
-        const val THREE_DAYS_MS = 3L * 24 * 60 * 60 * 1000
-        const val REVIEW_SNOOZE_MS = 14L * 24 * 60 * 60 * 1000
+        // First appearance after two days; each "لاحقاً" defers the next appearance
+        // (1st hide → 3 days, 2nd+ hide → 7 days) until MAX_REVIEW_PROMPTS total.
+        const val REVIEW_FIRST_SHOW_MS = 2L * 24 * 60 * 60 * 1000
+        const val REVIEW_SNOOZE_FIRST_HIDE_MS = 3L * 24 * 60 * 60 * 1000
+        const val REVIEW_SNOOZE_LATER_HIDE_MS = 7L * 24 * 60 * 60 * 1000
         const val MIN_REVIEW_SESSIONS = 10
         const val MAX_REVIEW_PROMPTS = 3
 
@@ -126,6 +129,17 @@ class ZakhrafaKeyboardService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Warm the style catalogue and emoji index off the main thread so the very
+        // first keyboard frame never pays that cost — slow first-show work is what
+        // lines up with the framework's early window-show races.
+        Thread({
+            runCatching {
+                val catalog = DecorationCatalog(this)
+                catalog.stylesFor(KeyboardMode.ARABIC)
+                catalog.stylesFor(KeyboardMode.ENGLISH)
+            }
+            runCatching { EmojiNames.names(this) }
+        }, "zakhrafa-prewarm").apply { isDaemon = true }.start()
     }
 
     override fun onCreateInputView(): View {
@@ -229,14 +243,14 @@ class ZakhrafaKeyboardService : InputMethodService() {
         bumpReviewSession()
         val prefs = getSharedPreferences("keyboard_settings", MODE_PRIVATE)
         val pickerRequestedAt = prefs.getLong("open_style_picker_requested_at", 0L)
-        // Remove both the v52 boolean and the v53 timestamp. Values are already
-        // read above; keep the durable commit (apply could let a rapid second
-        // show re-read the flag) but run it off the main thread — a blocking
-        // commit here contributed to window-show ANRs.
-        val clearPickerRequest = prefs.edit()
+        // Remove both the v52 boolean and the v53 timestamp. Values are already read
+        // above; apply() updates this process's in-memory prefs synchronously, so the
+        // next show reads the cleared state — no disk commit and no throwaway thread
+        // (both were needless work on every window show).
+        prefs.edit()
             .remove("open_style_picker_once")
             .remove("open_style_picker_requested_at")
-        Thread { runCatching { clearPickerRequest.commit() } }.start()
+            .apply()
         val requestIsFresh = pickerRequestedAt > 0L &&
             System.currentTimeMillis() - pickerRequestedAt in 0L..120_000L
         val requestCameFromOurSetupField = currentInputEditorInfo?.packageName == packageName
@@ -410,7 +424,7 @@ class ZakhrafaKeyboardService : InputMethodService() {
             prefs.edit().putLong("review_first_open_at", now).apply()
             return
         }
-        if (now - firstOpen < THREE_DAYS_MS) return
+        if (now - firstOpen < REVIEW_FIRST_SHOW_MS) return
         if (prefs.getInt("review_sessions", 0) < MIN_REVIEW_SESSIONS) return
         val shown = prefs.getInt("review_shown_count", 0)
         if (shown >= MAX_REVIEW_PROMPTS) return
@@ -448,7 +462,12 @@ class ZakhrafaKeyboardService : InputMethodService() {
             openPlayListing()
         })
         banner.addView(reviewChip("لاحقاً", prominent = false) {
-            prefs.edit().putLong("review_snoozed_until", System.currentTimeMillis() + REVIEW_SNOOZE_MS).apply()
+            val hides = prefs.getInt("review_hide_count", 0) + 1
+            val snoozeMs = if (hides == 1) REVIEW_SNOOZE_FIRST_HIDE_MS else REVIEW_SNOOZE_LATER_HIDE_MS
+            prefs.edit()
+                .putInt("review_hide_count", hides)
+                .putLong("review_snoozed_until", System.currentTimeMillis() + snoozeMs)
+                .apply()
             dismissReviewBanner()
         })
         reviewBanner = banner

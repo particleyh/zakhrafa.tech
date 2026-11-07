@@ -15,6 +15,22 @@ class DecorationCatalog(context: Context) {
     private val prefs = context.getSharedPreferences("decoration_catalog", Context.MODE_PRIVATE)
 
     fun stylesFor(mode: KeyboardMode): List<DecorationStyle> {
+        // Building the catalogue runs the engine over every style (filter, dedupe,
+        // name) — done once per mode, then re-sorted cheaply so favorite ordering
+        // stays live. This list is rebuilt on every input start, so caching it is
+        // the difference between instant restore and repeated main-thread engine work.
+        val mapped = builtCache[mode] ?: buildStyles(mode).also { builtCache[mode] = it }
+        // Keep true letter transformations first. Frame/side decorations wrap a word
+        // rather than changing its letters, so they belong at the end. Kotlin's
+        // stable sort preserves the curated engine order inside each group.
+        return mapped.sortedWith(
+            compareBy<DecorationStyle> { if (it.categoryLabel == "frame") 1 else 0 }
+                .thenByDescending { isFavorite(it.id) }
+                .thenByDescending { it.isPremium }
+        )
+    }
+
+    private fun buildStyles(mode: KeyboardMode): List<DecorationStyle> {
         val source = if (mode == KeyboardMode.ENGLISH) {
             EnglishStyles.all + LegacyStyles.english + ProfessionalStyles.english + TotalStyles.english + complexStyles() + frameStyles()
         } else {
@@ -34,14 +50,6 @@ class DecorationCatalog(context: Context) {
                     label = friendlyName(it.name)
                 )
             }
-            // Keep true letter transformations first. Frame/side decorations wrap a
-            // word rather than changing its letters, so they belong at the end.
-            // Kotlin's stable sort preserves the curated engine order inside each group.
-            .sortedWith(
-                compareBy<DecorationStyle> { if (it.categoryLabel == "frame") 1 else 0 }
-                    .thenByDescending { isFavorite(it.id) }
-                    .thenByDescending { it.isPremium }
-            )
     }
 
     fun isFavorite(id: String): Boolean = prefs.getBoolean("favorite_$id", false)
@@ -123,6 +131,11 @@ class DecorationCatalog(context: Context) {
     companion object {
         const val FRAME_LEFT = "__frame_left"
         const val FRAME_RIGHT = "__frame_right"
+
+        // Shared across instances (service, picker, unlock flow) and built once per
+        // process. Concurrent: the service warms it from a background thread while
+        // the main thread may build simultaneously (duplicate work, never corruption).
+        private val builtCache = java.util.concurrent.ConcurrentHashMap<KeyboardMode, List<DecorationStyle>>()
     }
 
     private fun stableId(vararg parts: String): String = parts.joinToString("|").hashCode().toUInt().toString(16)

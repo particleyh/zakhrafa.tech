@@ -65,10 +65,19 @@ class InputSession {
      * Deletes the editor selection first when there is one. `deleteSurroundingText`
      * deliberately excludes a selection, so using it alone makes Backspace appear to
      * do nothing in many chat editors after the user highlights text.
+     *
+     * [probeSelection] is false when the caller already knows the selection is
+     * empty (the IME received selection callbacks): skipping `getSelectedText`
+     * then removes a cross-process binder round-trip from every Backspace, which
+     * is what let a busy host app stall the keyboard into an input-dispatch ANR.
      */
-    fun delete(inputConnection: InputConnection?, fallbackLength: () -> Int = { 1 }): Boolean {
+    fun delete(
+        inputConnection: InputConnection?,
+        fallbackLength: () -> Int = { 1 },
+        probeSelection: Boolean = true
+    ): Boolean {
         if (inputConnection == null) return false
-        if (deleteSelectedText(inputConnection)) return true
+        if (probeSelection && deleteSelectedText(inputConnection)) return true
         activeFrame?.let { frame ->
             val prior = tokens.lastOrNull()?.output.orEmpty()
             if (prior.isNotEmpty() && !inputConnection.deleteSurroundingText(prior.length, 0)) return false

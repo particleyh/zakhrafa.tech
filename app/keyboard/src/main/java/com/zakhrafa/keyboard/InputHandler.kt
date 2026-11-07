@@ -76,11 +76,16 @@ internal class InputHandler(private val svc: ZakhrafaKeyboardService) {
             svc.clearSuggestions()
             return
         }
-        // session.delete already probes getSelectedText (covers editors that don't
-        // fire onUpdateSelection), so no extra probe is needed here. The UTF-16
-        // fallback length is only read when the session has no tracked token.
+        // session.delete already probes getSelectedText when the selection state is
+        // unknown. Skip that probe when the editor has reported an empty selection —
+        // it is a binder round-trip per Backspace and the top input-dispatch ANR.
+        val selectionKnownEmpty = selectionStart >= 0 && selectionEnd >= 0 && selectionStart == selectionEnd
         val deleted = runCatching {
-            session.delete(svc.currentInputConnection) { utf16CharLengthBefore(svc.currentInputConnection) }
+            session.delete(
+                svc.currentInputConnection,
+                { utf16CharLengthBefore(svc.currentInputConnection) },
+                probeSelection = !selectionKnownEmpty
+            )
         }.getOrDefault(false)
         if (!deleted) {
             resetCurrentWord()
