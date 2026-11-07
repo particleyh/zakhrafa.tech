@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,6 +29,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.view.ViewCompat
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.zakhrafa.keyboard.theme.KeyboardTheme
 import com.zakhrafa.keyboard.theme.Themes
@@ -54,6 +56,7 @@ class SettingsActivity : ComponentActivity() {
     private var tutorialDialog: AlertDialog? = null
     private var settingsScroll: ScrollView? = null
     private var settingsScrollY = 0
+    private var lastBottomPad = -1
     private var autoOpenedBackgroundPicker = false
     private val selectionHandler = Handler(Looper.getMainLooper())
     private var selectionCheck: Runnable? = null
@@ -331,6 +334,7 @@ class SettingsActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xFFF5F7FB.toInt())
             rootLayout = this
+            attachInsetsHandling(this)
         }
         root.removeAllViews()
         val floatingPreview = LinearLayout(this).apply {
@@ -401,6 +405,61 @@ class SettingsActivity : ComponentActivity() {
         root.addView(scroll)
         if (root.parent == null) setContentView(root)
         scroll.post { scroll.scrollTo(0, settingsScrollY) }
+    }
+
+    /**
+     * On targetSdk 36 the window is edge-to-edge and adjustResize may no longer
+     * shrink it for the IME, so the settings scroll extends behind the keyboard
+     * and the test box at content-bottom stays covered no matter how far we
+     * scroll. Measure how much of the root the keyboard (or nav bar) actually
+     * covers and pad the root by exactly that much — zero when the window
+     * already resized, so it never double-pads on devices where adjustResize
+     * still works.
+     */
+    private fun attachInsetsHandling(root: LinearLayout) {
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            root.post { syncBottomInset() }
+            insets
+        }
+        root.addOnLayoutChangeListener { _, _, _, _, newBottom, _, _, _, oldBottom ->
+            if (newBottom != oldBottom) {
+                root.post {
+                    syncBottomInset()
+                    revealFocusedInScroll()
+                }
+            }
+        }
+    }
+
+    private fun syncBottomInset() {
+        val root = rootLayout ?: return
+        if (isFinishing || isDestroyed || root.height == 0) return
+        val visible = Rect()
+        window.decorView.getWindowVisibleDisplayFrame(visible)
+        val loc = IntArray(2)
+        root.getLocationOnScreen(loc)
+        val hidden = (loc[1] + root.height - visible.bottom).coerceAtLeast(0)
+        if (hidden == lastBottomPad) return
+        lastBottomPad = hidden
+        root.setPadding(root.paddingLeft, root.paddingTop, root.paddingRight, hidden)
+        root.post { revealFocusedInScroll() }
+        logEvent("kb_ime_inset", "pad" to hidden.toString())
+    }
+
+    /** Scrolls the focused view fully into the scroll viewport, minimal distance. */
+    private fun revealFocusedInScroll() {
+        val sv = settingsScroll ?: return
+        val focus = sv.findFocus() ?: return
+        var current: View? = focus
+        while (current != null) {
+            if (current === sv) {
+                // +dp(16) keeps a small gap under the box above the keyboard.
+                val rect = Rect(0, 0, focus.width, focus.height + dp(16))
+                focus.requestRectangleOnScreen(rect, true)
+                return
+            }
+            current = current.parent as? View
+        }
     }
 
     private fun showSetupTutorialIfNeeded() {
@@ -847,11 +906,16 @@ class SettingsActivity : ComponentActivity() {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = rounded(0xFFFFFFFF.toInt(), dp(10).toFloat(), 0xFFDDE3EA.toInt())
-            // Keep the test box visible above the keyboard: some devices don't
-            // scroll the focused child into view when the window resizes.
+            // Keep the test box visible above the keyboard. A one-shot scroll
+            // fired while the IME is still animating lands at the stale
+            // pre-resize offset (and with adjustResize dead on edge-to-edge
+            // targetSdk 36 the window never shrinks at all), so re-reveal on
+            // focus, after the resize, and again once the inset pad lands.
             setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
-                    settingsScroll?.postDelayed({ settingsScroll?.fullScroll(View.FOCUS_DOWN) }, 150)
+                    settingsScroll?.post { revealFocusedInScroll() }
+                    settingsScroll?.postDelayed({ revealFocusedInScroll() }, 150)
+                    settingsScroll?.postDelayed({ revealFocusedInScroll() }, 400)
                 }
             }
         })
