@@ -84,6 +84,11 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                 }
             }
 
+            // True only for the gesture that opened the current popup. Distinguishes
+            // "released right after long-press" (keep popup sticky) from a fresh tap
+            // on the key while an older popup is open (dismiss + type the letter).
+            var popupOpenedByThisGesture = false
+
             if (key.longPress.isNotEmpty()) {
                 isLongClickable = true
                 setOnLongClickListener {
@@ -96,6 +101,12 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                     } else {
                         activeVariantPopup?.window?.dismiss()
                         activeVariantPopup = showVariantPopup(this, key.longPress)
+                        if (activeVariantPopup == null) {
+                            // Popup could not attach (detached view / OEM quirk):
+                            // committing beats silently swallowing the long-press.
+                            svc.commitKey(key.longPress.first())
+                        }
+                        popupOpenedByThisGesture = true
                     }
                     true
                 }
@@ -106,6 +117,7 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                 setOnTouchListener { view, event ->
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN -> {
+                            popupOpenedByThisGesture = false
                             if (shouldPreviewPress) showKeyPreview(view, key.label)
                             false
                         }
@@ -124,10 +136,28 @@ internal class KeyRenderer(private val svc: ZakhrafaKeyboardService) {
                             if (selected != null) {
                                 active.window.dismiss()
                                 activeVariantPopup = null
+                                // Consuming UP skips View.onTouchEvent, which is what
+                                // clears the pressed state — without this the key stays
+                                // visually pressed forever after choosing a variant.
+                                view.isPressed = false
                                 svc.commitKey(selected)
+                                true
+                            } else if (popupOpenedByThisGesture) {
+                                // Released where it pressed, right after the long-press:
+                                // keep the popup sticky so a variant can still be tapped,
+                                // but clear the pressed state for the same reason.
+                                view.isPressed = false
+                                true
+                            } else {
+                                // Fresh tap on the key while an older popup is open:
+                                // dismiss the popup and fall through to the normal click
+                                // so the base letter types. Returning true here used to
+                                // swallow the tap — press feedback showed, nothing was
+                                // written ("as if the letter was written but wasn't").
+                                try { active.window.dismiss() } catch (_: Exception) {}
+                                activeVariantPopup = null
+                                false
                             }
-                            // Finger lifted off variants — leave popup open (sticky).
-                            true
                         }
                         MotionEvent.ACTION_CANCEL -> {
                             dismissKeyPreview()
